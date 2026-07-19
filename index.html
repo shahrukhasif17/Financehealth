@@ -678,7 +678,7 @@ function migrate() {
   if (!Array.isArray(s.banks) || !s.banks.length) s.banks = [...DEFAULT_BANKS];
   if (s.hideRemaining == null) s.hideRemaining = false;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
-  for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; }
+  for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; if (l.extraTotal == null) l.extraTotal = 0; }
   for (const k in state.months) {
     const m = state.months[k];
     if (m.plan && m.plan.salary == null) m.plan.salary = s.salary || 0;
@@ -796,7 +796,7 @@ function loanActiveIn(loan, ym) {
   return (loan.startMonth || "0000") <= ym && (!endYM || ym <= endYM);
 }
 function loanPlanFor(ym) {
-  return state.loans.filter(l => loanActiveIn(l, ym)).reduce((s, l) => s + l.monthlyPayment, 0);
+  return state.loans.filter(l => loanActiveIn(l, ym) && l.remainingBalance > 0).reduce((s, l) => s + l.monthlyPayment, 0);
 }
 function loanPaidFor(ym) {
   return state.loans.filter(l => (l.appliedMonths || []).includes(ym)).reduce((s, l) => s + l.monthlyPayment, 0);
@@ -1462,6 +1462,19 @@ function loanProjection(loan) {
   const interest = Math.max(0, +(P * months - B).toFixed(2));
   return { months, interest, payoffYM: ymAdd(currentYM(), months), never: false };
 }
+// Progress stats. If the total amount was entered, use it; otherwise estimate
+// the original total from payments made so far + any extra payments, so the
+// "% paid" works even when total is left blank.
+function loanStats(loan) {
+  const paidByInstalments = (loan.monthlyPayment || 0) * ((loan.appliedMonths || []).length);
+  const extra = loan.extraTotal || 0;
+  const paidSoFar = paidByInstalments + extra;
+  const estimated = !(loan.originalTotal > 0);
+  const orig = estimated ? (loan.remainingBalance + paidSoFar) : loan.originalTotal;
+  const paidOff = Math.max(0, +(orig - loan.remainingBalance).toFixed(2));
+  const pct = orig > 0 ? Math.min(100, paidOff / orig * 100) : 0;
+  return { orig, paidOff, pct, estimated };
+}
 // True if a paid automatic (direct debit / standing order) expense this month
 // has the same name as the loan/card.
 function loanPaidByDD(loan) {
@@ -1477,19 +1490,18 @@ function renderLoans() {
   const totalInterest = state.loans.reduce((s, l) => { const p = loanProjection(l); return s + (p.interest || 0); }, 0);
 
   const cards = state.loans.map(l => {
-    const orig = l.originalTotal || l.remainingBalance || 1;
-    const paidOff = Math.max(0, orig - l.remainingBalance);
-    const pct = Math.min(100, paidOff / orig * 100);
+    const { orig, paidOff, pct, estimated } = loanStats(l);
     const cur = currentYM();
     const skipped = (l.skippedMonths || []).includes(cur);
     const appliedThis = (l.appliedMonths || []).includes(cur);
     const linked = loanPaidByDD(l);
     const proj = loanProjection(l);
     const isCard = l.type === "card";
+    const done = l.remainingBalance <= 0;
     const statusBit = skipped ? '<span class="warn">this month skipped</span>'
       : (appliedThis || linked) ? '<span class="pos">paid this month</span>' : "";
-    return `<div class="card tappable" onclick="openLoanSheet('${l.id}')" style="cursor:pointer">
-      <div class="card-pad">
+    return `<div class="card">
+      <div class="card-pad tappable" onclick="openLoanSheet('${l.id}')" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-size:17px;font-weight:600">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : ""}">${isCard ? "Card" : "Loan"}</span></div>
@@ -1497,19 +1509,25 @@ function renderLoans() {
           </div>
           <div class="chevron">${chevronSmall}</div>
         </div>
-        <div style="font-size:30px;font-weight:700;letter-spacing:-0.8px;margin:10px 0 2px">${fmtRich(l.remainingBalance)}</div>
-        <div class="muted" style="font-size:13px">remaining${statusBit ? " · " + statusBit : ""}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 2px">
+          <div>
+            <div style="font-size:30px;font-weight:700;letter-spacing:-0.8px">${fmtRich(l.remainingBalance)}</div>
+            <div class="muted" style="font-size:13px">remaining${statusBit ? " · " + statusBit : ""}</div>
+          </div>
+          <div style="text-align:right"><div style="font-size:22px;font-weight:700;color:var(--accent-text)" class="num">${Math.round(pct)}%</div><div class="muted" style="font-size:11px">paid off</div></div>
+        </div>
         ${linked ? `<div class="link-badge" style="margin-top:6px">${boltIcon} Linked to an automatic payment this month</div>` : ""}
         <div class="progress green" style="margin-top:10px"><div style="width:${pct}%"></div></div>
-        <div class="muted num" style="font-size:12px;margin-top:6px">${gbp.format(paidOff)} of ${gbp.format(orig)} paid off (${Math.round(pct)}%)</div>
+        <div class="muted num" style="font-size:12px;margin-top:6px">${gbp.format(paidOff)} of ${gbp.format(orig)}${estimated ? " (est.)" : ""} paid off</div>
         <div class="stat-grid">
-          <div class="stat-cell"><div class="sc-label">Payoff date</div><div class="sc-val num">${proj.never ? "—" : proj.payoffYM ? monthShort(proj.payoffYM) : "Now"}</div></div>
-          <div class="stat-cell"><div class="sc-label">Months left</div><div class="sc-val num">${proj.never ? "—" : (proj.months ?? 0)}</div></div>
+          <div class="stat-cell"><div class="sc-label">${done ? "Status" : "Final payment"}</div><div class="sc-val num">${done ? "Paid off 🎉" : proj.never ? "—" : proj.payoffYM ? monthShort(proj.payoffYM) : "Now"}</div></div>
+          <div class="stat-cell"><div class="sc-label">Months left</div><div class="sc-val num">${done ? "0" : proj.never ? "—" : (proj.months ?? 0)}</div></div>
           <div class="stat-cell"><div class="sc-label">Interest left${l.apr ? "" : " (set APR)"}</div><div class="sc-val num">${proj.never ? "—" : gbp.format(proj.interest || 0)}</div></div>
-          <div class="stat-cell"><div class="sc-label">Total to pay</div><div class="sc-val num">${proj.never ? "—" : gbp.format(l.remainingBalance + (proj.interest || 0))}</div></div>
+          <div class="stat-cell"><div class="sc-label">Total left to pay</div><div class="sc-val num">${proj.never ? "—" : gbp.format(l.remainingBalance + (proj.interest || 0))}</div></div>
         </div>
         ${proj.never && l.remainingBalance > 0 ? `<div class="footer-note" style="text-align:left;padding:8px 0 0"><span class="warn">Payment doesn't cover the interest — the balance won't reduce.</span></div>` : ""}
       </div>
+      ${done ? "" : `<div style="border-top:0.5px solid var(--separator);padding:6px"><button class="btn small tinted" style="width:100%" onclick="openPayExtra('${l.id}')">＋ Pay Extra</button></div>`}
     </div>`;
   }).join("");
 
@@ -1867,26 +1885,27 @@ window.openLoanSheet = (id) => {
     <div class="form-group">
       ${fText("fl-name", "Name", l?.name || "", "e.g. Car finance")}
       ${fAmount("fl-balance", "Remaining balance", l?.remainingBalance ?? "")}
+      ${fAmount("fl-total", "Total amount (optional)", (l && l.originalTotal > 0) ? l.originalTotal : "")}
       ${fAmount("fl-payment", "Monthly payment", l?.monthlyPayment ?? "")}
       ${fDay("fl-dd", "Direct debit day", l?.ddDay ?? "")}
       <div class="form-row"><label for="fl-apr">APR %</label><input type="number" id="fl-apr" inputmode="decimal" step="0.1" min="0" value="${l?.apr || ""}" placeholder="e.g. 24.9"></div>
-      ${fDate("fl-end", "End date (optional)", l?.endDate || "")}
     </div>
-    <div class="form-hint">Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month. Add the APR to see the payoff date and interest.</div>
+    <div class="form-hint">Leave <b>Total</b> blank and the app estimates how much you've paid off. The final payoff date is worked out automatically from the balance, payment and APR. Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month.</div>
     ${l ? `<div class="form-group">${fSwitch("fl-skip", `Skip ${monthShort(cur)} payment`, skipped)}</div>
     <div class="form-hint">Skipping stops (or reverses) this month's automatic balance reduction. Edit the balance above any time to correct for over/underpayments.</div>` :
     `<div class="form-hint">The balance drops by the monthly payment automatically each time the direct debit day passes.</div>`}
     ${l ? deleteBtn(`deleteLoan('${l.id}')`) : ""}
   `, () => {
     const name = val("fl-name"), payment = num("fl-payment"), balance = num("fl-balance");
-    const ddDay = dayVal("fl-dd"), endDate = val("fl-end") || null, apr = num("fl-apr");
+    const total = num("fl-total"), ddDay = dayVal("fl-dd"), apr = num("fl-apr");
     const ltype = $("#fl-type .active").dataset.v;
     if (!name) return invalid("fl-name", "Give it a name.");
     if (payment <= 0) return invalid("fl-payment", "Enter the monthly payment.");
     if (!ddDay) return invalid("fl-dd", "Enter the direct debit day (1–31).");
     if (l) {
-      l.name = name; l.monthlyPayment = payment; l.ddDay = ddDay; l.endDate = endDate;
+      l.name = name; l.monthlyPayment = payment; l.ddDay = ddDay;
       l.type = ltype; l.apr = apr;
+      l.originalTotal = total > 0 ? total : 0; // 0 => estimate
       l.remainingBalance = balance; // manual override always wins
       const wasSkipped = (l.skippedMonths || []).includes(cur);
       const wantSkip = checked("fl-skip");
@@ -1901,8 +1920,8 @@ window.openLoanSheet = (id) => {
       }
     } else {
       const loan = {
-        id: uid(), name, type: ltype, apr, monthlyPayment: payment, ddDay, endDate,
-        originalTotal: balance, remainingBalance: balance,
+        id: uid(), name, type: ltype, apr, monthlyPayment: payment, ddDay, endDate: null,
+        originalTotal: total > 0 ? total : 0, remainingBalance: balance, extraTotal: 0,
         startMonth: cur, appliedMonths: [], skippedMonths: []
       };
       if (today().getDate() >= ddDay) loan.appliedMonths.push(cur);
@@ -1923,6 +1942,21 @@ window.deleteLoan = async (id) => {
     state.loans = state.loans.filter(x => x.id !== id);
     save(); render();
   }
+};
+// Extra one-off overpayment: drops the balance now; projection recalculates.
+window.openPayExtra = (id) => {
+  const l = state.loans.find(x => x.id === id);
+  if (!l) return;
+  openSheet(`Pay Extra — ${l.name}`, `
+    <div class="form-group">${fAmount("pe-amount", "Extra amount", "")}</div>
+    <div class="form-hint">Current balance ${fmtPlain(l.remainingBalance)}. This reduces the balance now — the payoff date, months left and interest all recalculate.</div>
+  `, () => {
+    const amt = num("pe-amount");
+    if (amt <= 0) return invalid("pe-amount", "Enter an amount greater than zero.");
+    l.remainingBalance = Math.max(0, +(l.remainingBalance - amt).toFixed(2));
+    l.extraTotal = +((l.extraTotal || 0) + amt).toFixed(2);
+    save(); render();
+  }, { saveLabel: "Pay" });
 };
 
 /* ---------- Income sheet ---------- */

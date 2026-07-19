@@ -67,12 +67,16 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.
-- `loans[]` — `type` (`"loan"`|`"card"` credit card), `apr`, `endDate`, plus
+- `loans[]` — `type` (`"loan"`|`"card"` credit card), `apr`, optional `endDate`,
+  `originalTotal` (0/absent = estimate), `extraTotal` (cumulative overpayments), plus
   `appliedMonths[]`/`skippedMonths[]` for **idempotent** direct-debit auto-reduction,
-  `originalTotal` for the payoff bar, `startMonth`. `loanProjection()` amortises
-  balance/payment/APR into months-left, interest and payoff date (flags `never` when the
-  payment doesn't cover monthly interest). `loanPaidByDD()` shows a "linked to a direct
-  debit" badge when a paid DD expense has the **same name** as the loan/card.
+  `startMonth`. `loanProjection()` amortises balance/payment/APR into months-left,
+  interest and the **auto payoff/final-payment date** (flags `never` when the payment
+  doesn't cover monthly interest). `loanStats()` gives % paid + total: uses the entered
+  `originalTotal`, or estimates it from payments-made + `extraTotal` when total is blank.
+  "Pay Extra" (`openPayExtra`) drops the balance now and everything recalculates.
+  `loanPaidByDD()` shows a "linked to an automatic payment" badge when a paid dd/so
+  expense has the **same name** as the loan/card.
 - The Transactions tab holds CSV bank-statement import (moved out of Expenses):
   combined out/in totals, per-bank cards, and a combined "Where it went". Automatic bank
   (e.g. Monzo) sync is intentionally not implemented — impossible in a serverless,
