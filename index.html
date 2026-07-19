@@ -41,6 +41,8 @@
   --field-bg: #FFFFFF;
   --chip-active-bg: #0B0B0C;
   --chip-active-text: #FFFFFF;
+  --manual: #2F6BD8;
+  --violet: #6D5BD0;
   --shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 @media (prefers-color-scheme: dark) {
@@ -67,6 +69,8 @@
     --field-bg: #242427;
     --chip-active-bg: #F7F7F4;
     --chip-active-text: #0B0B0C;
+    --manual: #82B4FF;
+    --violet: #BCA9FF;
     --shadow: none;
   }
 }
@@ -290,7 +294,26 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ddbar.dd { background: var(--accent); }
 .x-main { flex: 1; min-width: 0; }
 .x-name { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.x-due { font-size: 11px; font-weight: 600; color: var(--text-3); margin-left: 6px; }
 .x-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-dd { color: var(--accent-text); font-weight: 600; }
+.mm-man { color: var(--manual); font-weight: 600; }
+.cat-reg { color: var(--text-2); }
+.cat-extra { color: var(--amber); font-weight: 600; }
+.cat-custom { color: var(--violet); font-weight: 600; }
+
+/* Remaining-this-month card */
+.remain-card { position: relative; padding: 14px 16px; }
+.remain-card h4 { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.remain-big { font-size: 32px; font-weight: 700; letter-spacing: -0.8px; }
+.remain-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
+.eye-btn {
+  position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 17px;
+  display: flex; align-items: center; justify-content: center; color: var(--text-2);
+  background: var(--fill); transition: background 150ms ease-out;
+}
+.eye-btn:active { background: var(--fill-strong); }
+.eye-btn svg { width: 18px; height: 18px; }
 .x-amt { font-size: 14px; font-weight: 600; flex-shrink: 0; }
 .x-more {
   width: 30px; height: 30px; border-radius: 15px; color: var(--text-2); flex-shrink: 0;
@@ -507,6 +530,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 </div>
 
 <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+<input type="file" id="stmtFile" accept=".csv,text/csv,text/plain" class="hidden">
 
 <script>
 "use strict";
@@ -569,11 +593,12 @@ function fmtDate(iso) {
 const ordinal = n => n + (["th","st","nd","rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : Math.min(n % 10, 4)] || "th");
 
 /* ---------- State ---------- */
+const DEFAULT_BANKS = ["Monzo", "Barclays", "Halifax", "Tesco"];
 function defaultState() {
   return {
     version: 1,
-    settings: { spendingPlan: 0, savingsTarget: 0, expectedFreelance: 0 },
-    months: {},      // "YYYY-MM" -> { expenses:[], savingsAdded:0, plan:{spendingPlan,savingsTarget,expectedFreelance} }
+    settings: { spendingPlan: 0, savingsTarget: 0, expectedFreelance: 0, salary: 0, banks: [...DEFAULT_BANKS], hideRemaining: false },
+    months: {},      // "YYYY-MM" -> { expenses:[], savingsAdded:0, plan:{...planSnapshot()}, statements:{bank:{imported,tx:[{d,n,a}]}} }
     recurring: [],   // templates: { id, name, amount, dueDay, startMonth, endMonth|null }
     loans: [],       // { id, name, monthlyPayment, ddDay, endDate, originalTotal, remainingBalance, startMonth, appliedMonths:[], skippedMonths:[] }
     income: [],      // { id, title, amount, expectedDate, status, note, paidDate }
@@ -596,12 +621,27 @@ function load() {
 }
 // Backfill fields added after first release. Safe to run repeatedly.
 function migrate() {
+  const s = state.settings;
+  if (s.salary == null) s.salary = 0;
+  if (!Array.isArray(s.banks) || !s.banks.length) s.banks = [...DEFAULT_BANKS];
+  if (s.hideRemaining == null) s.hideRemaining = false;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
-  for (const k in state.months) for (const e of state.months[k].expenses) {
-    if (!e.method) e.method = e.recurring ? "dd" : "manual";
-    if (!e.category) e.category = "Regular";
+  for (const k in state.months) {
+    const m = state.months[k];
+    if (m.plan && m.plan.salary == null) m.plan.salary = s.salary || 0;
+    for (const e of m.expenses) {
+      if (!e.method) e.method = e.recurring ? "dd" : "manual";
+      if (!e.category) e.category = "Regular";
+    }
   }
 }
+// Per-month snapshot of the plan figures (kept minimal on purpose)
+const planSnapshot = () => ({
+  spendingPlan: state.settings.spendingPlan || 0,
+  savingsTarget: state.settings.savingsTarget || 0,
+  expectedFreelance: state.settings.expectedFreelance || 0,
+  salary: state.settings.salary || 0
+});
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { console.error("Failed to save state", e); }
@@ -612,7 +652,7 @@ function newMonth() {
   return {
     expenses: [],
     savingsAdded: 0,
-    plan: { ...state.settings }
+    plan: planSnapshot()
   };
 }
 
@@ -626,7 +666,7 @@ function fillRecurring(ym) {
     month.expenses.push({
       id: uid(), name: t.name, amount: t.amount, dueDay: t.dueDay || null,
       paid: false, recurring: true, recurringId: t.id,
-      method: t.method || "dd", category: t.category || "Regular"
+      method: t.method || "dd", category: t.category || "Regular", bank: t.bank || null
     });
   }
 }
@@ -817,6 +857,37 @@ function emptyState(iconSvg, title, text, btnLabel, onclick) {
     ${btnLabel ? `<button class="btn primary" style="max-width:240px;margin:0 auto" onclick="${onclick}">${btnLabel}</button>` : ""}
   </div>`;
 }
+/* ---------- Remaining this month ---------- */
+const eyeOpen = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const eyeOff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16"/><path d="M9.9 5.9A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17.6 17.6 0 0 1-3.2 3.9M6 7.7A17 17 0 0 0 2.5 12S6 18.5 12 18.5c1.1 0 2.1-.2 3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+
+window.toggleRemaining = () => {
+  state.settings.hideRemaining = !state.settings.hideRemaining;
+  save(); render();
+};
+function remainingCard(ym) {
+  const m = monthData(ym);
+  const salary = m.plan.salary ?? (state.settings.salary || 0);
+  const freelance = incomeReceivedFor(ym);
+  const spent = expenseTotals(ym).paid;
+  const loans = loanPaidFor(ym);
+  const saved = m.savingsAdded || 0;
+  const remaining = salary + freelance - spent - loans - saved;
+  const hidden = state.settings.hideRemaining;
+  const parts = [`salary ${gbp.format(salary)}`];
+  if (freelance) parts.push(`+ freelance ${gbp.format(freelance)}`);
+  parts.push(`− spent ${gbp.format(spent)}`);
+  if (loans) parts.push(`− loans ${gbp.format(loans)}`);
+  if (saved) parts.push(`− saved ${gbp.format(saved)}`);
+  return `<div class="card remain-card">
+    <h4>Remaining this month</h4>
+    <div class="remain-big ${remaining < 0 ? "neg" : ""}">${hidden ? '<span class="muted">••••</span>' : fmtRich(remaining)}</div>
+    <div class="remain-sub num">${hidden ? "Hidden — tap the eye to show" :
+      (salary || freelance ? esc(parts.join(" ")) : "Set your salary in Settings to track what's left each month.")}</div>
+    <button class="eye-btn" onclick="toggleRemaining()" aria-label="Show or hide remaining">${hidden ? eyeOff : eyeOpen}</button>
+  </div>`;
+}
+
 function diffSpan(diff, goodWhenPositive = true) {
   if (Math.abs(diff) < 0.005) return `<span class="pva-diff muted num">±£0</span>`;
   const good = goodWhenPositive ? diff > 0 : diff < 0;
@@ -895,6 +966,8 @@ function renderHome() {
       <div class="why-list ${whyOpen ? "" : "hidden"}">${whyRows}</div>
     </div>
 
+    ${remainingCard(homeYM)}
+
     <div class="section-header">Plan vs Actual</div>
     <div class="segmented">
       <button class="${homeSeg === "plan" ? "active" : ""}" onclick="setHomeSeg('plan')">Plan</button>
@@ -954,6 +1027,7 @@ function expenseMatches(e, f) {
   if (f === "all") return true;
   if (f === "dd") return e.method === "dd";
   if (f === "manual") return e.method !== "dd";
+  if (f.startsWith("bank:")) return (e.bank || "") === f.slice(5);
   return (e.category || "Regular") === f;
 }
 
@@ -966,13 +1040,15 @@ function renderExpenses() {
   const { due, paid } = expenseTotals(ym);
   const pct = due > 0 ? Math.min(100, paid / due * 100) : 0;
 
-  // filter chips: fixed method filters + every category present this month
+  // filter chips: fixed method filters + categories + banks used this month
   const cats = [...new Set(["Regular", "Extra", ...m.expenses.map(e => e.category || "Regular")])];
+  const banksUsed = [...new Set(m.expenses.map(e => e.bank).filter(Boolean))];
   const chipDefs = [
     { key: "all", label: "All" },
     { key: "dd", label: "Direct Debit" },
     { key: "manual", label: "Manual" },
-    ...cats.map(c => ({ key: c, label: c }))
+    ...cats.map(c => ({ key: c, label: c })),
+    ...banksUsed.map(b => ({ key: "bank:" + b, label: b }))
   ];
   if (!chipDefs.some(c => c.key === expFilter)) expFilter = "all";
   const chips = chipDefs.map(c => {
@@ -983,19 +1059,21 @@ function renderExpenses() {
   const list = m.expenses.filter(e => expenseMatches(e, expFilter))
     .sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32) || a.name.localeCompare(b.name));
   const fTot = list.reduce((s, e) => s + e.amount, 0);
+  const stmtBanks = Object.keys(m.statements || {}).sort();
 
   const rows = list.map(e => {
     const overdue = isOverdue(e, ym);
+    const cat = e.category || "Regular";
+    const catCls = cat === "Regular" ? "cat-reg" : cat === "Extra" ? "cat-extra" : "cat-custom";
     const bits = [
-      e.dueDay ? `Due ${ordinal(e.dueDay)}` : null,
-      e.method === "dd" ? "Direct debit" : "Manual",
-      esc(e.category || "Regular"),
-      e.recurring ? "Repeats" : null
+      `<span class="${e.method === "dd" ? "mm-dd" : "mm-man"}">${e.method === "dd" ? "Direct debit" : "Manual"}</span>`,
+      `<span class="${catCls}">${esc(cat)}</span>`,
+      e.bank ? `<span class="muted">${esc(e.bank)}</span>` : null
     ].filter(Boolean).join(" · ");
     return `<div class="xrow">
       <span class="ddbar ${e.method === "dd" ? "dd" : ""}"></span>
       <div class="x-main">
-        <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
+        <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
         <div class="x-sub">${bits}</div>
       </div>
       <div class="x-amt num" style="${overdue ? "color:var(--red)" : ""}">${gbp.format(e.amount)}</div>
@@ -1009,6 +1087,7 @@ function renderExpenses() {
 
   $("#view-expenses").innerHTML = `
     ${monthNav(ym, keys[0] < ym, ym < currentYM(), "expNav")}
+    ${remainingCard(ym)}
     <div class="card card-pad">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
         <div style="font-size:15px;font-weight:600" class="num">${gbp.format(paid)} of ${gbp.format(due)} paid</div>
@@ -1026,6 +1105,21 @@ function renderExpenses() {
           readOnly ? "Nothing was recorded for this month." : "Add your bills and outgoings for this month. Recurring ones roll over automatically.",
           readOnly ? null : "Add Expense", "openExpenseSheet()")}
     ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
+    <div class="section-header">Bank statements</div>
+    ${stmtBanks.length ? `<div class="card">${stmtBanks.map(b => {
+        const st = m.statements[b];
+        const out = st.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
+        const inn = st.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+        return `<div class="row tappable" onclick="openStatementSheet('${ym}','${esc(b)}')">
+          <div class="row-main">
+            <div class="row-title">${esc(b)}</div>
+            <div class="row-sub num">Out ${gbp.format(out)} · In ${gbp.format(inn)} · ${st.tx.length} transactions</div>
+          </div>
+          <div class="chevron">${chevronSmall}</div>
+        </div>`;
+      }).join("")}</div>`
+      : `<div class="card card-pad muted" style="font-size:13px;line-height:1.5">At the end of the month, export a CSV from each banking app and import it here to see where the money actually went.</div>`}
+    <button class="btn tinted" onclick="importStatement()">Import Statement (CSV)</button>
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
 }
@@ -1055,6 +1149,207 @@ window.openExpenseMenu = (id) => {
       } },
     { label: "Delete", style: "destructive", fn: () => deleteExpense(id) }
   ]);
+};
+
+/* ---------- Bank statements (CSV import) ---------- */
+// Minimal CSV parser with quoted-field support.
+function parseCSV(text) {
+  const rows = []; let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); field = "";
+      if (row.some(f => f.trim() !== "")) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); if (row.some(f => f.trim() !== "")) rows.push(row); }
+  return rows;
+}
+const MONTHS3 = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+function parseDateFlexible(s) {
+  s = (s || "").trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);                    // ISO (Monzo)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);     // DD/MM/YYYY (UK banks)
+  if (m) {
+    const y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return `${y}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
+  }
+  m = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/);        // 03 Jul 2026
+  if (m) {
+    const mo = MONTHS3.indexOf(m[2].slice(0, 3).toLowerCase()) + 1;
+    if (mo) {
+      const y = m[3].length === 2 ? "20" + m[3] : m[3];
+      return `${y}-${String(mo).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
+    }
+  }
+  return null;
+}
+function parseMoney(s) {
+  s = (s || "").trim().replace(/[£$€,\s]/g, "");
+  if (s === "" || isNaN(+s)) return null;
+  return +s;
+}
+// Auto-detects the date / amount (or debit+credit) / description columns of a
+// bank CSV export. Returns [{d:"YYYY-MM-DD", n:"desc", a:amount}] with a<0 = money out.
+function parseStatement(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) return null;
+  const header = rows[0].map(h => (h || "").toLowerCase().trim());
+  const data = rows.slice(1);
+  const ncol = Math.max(...rows.map(r => r.length));
+  let dateCol = -1, best = 0;
+  for (let c = 0; c < ncol; c++) {
+    const n = data.filter(r => parseDateFlexible(r[c])).length;
+    if (n > best) { best = n; dateCol = c; }
+  }
+  if (dateCol < 0 || best < data.length * 0.5) return null;
+  const hIdx = re => header.findIndex(h => re.test(h));
+  let outCol = hIdx(/debit|money out|paid out/), inCol = hIdx(/credit|money in|paid in/);
+  let amtCol = -1;
+  if (outCol < 0 || inCol < 0 || outCol === inCol) {
+    outCol = inCol = -1;
+    amtCol = hIdx(/^amount$|amount \(|^value$/);
+    if (amtCol === dateCol) amtCol = -1;
+    if (amtCol < 0) {
+      let bestN = 0;
+      for (let c = 0; c < ncol; c++) {
+        if (c === dateCol || /balance|number|sort|account/.test(header[c] || "")) continue;
+        const n = data.filter(r => parseMoney(r[c]) !== null).length;
+        if (n > bestN) { bestN = n; amtCol = c; }
+      }
+    }
+  }
+  let descCol = hIdx(/desc|memo|^name$|merchant|reference|narrative/);
+  if (descCol === dateCol || descCol === amtCol) descCol = -1;
+  if (descCol < 0) {
+    let bestL = -1;
+    for (let c = 0; c < ncol; c++) {
+      if (c === dateCol || c === amtCol || c === outCol || c === inCol) continue;
+      const nNum = data.filter(r => parseMoney(r[c]) !== null).length;
+      if (nNum > data.length * 0.8) continue;
+      const L = data.reduce((s, r) => s + ((r[c] || "").length), 0);
+      if (L > bestL) { bestL = L; descCol = c; }
+    }
+  }
+  const tx = [];
+  for (const r of data) {
+    const d = parseDateFlexible(r[dateCol]);
+    if (!d) continue;
+    let a = null;
+    if (amtCol >= 0) a = parseMoney(r[amtCol]);
+    else {
+      const o = parseMoney(r[outCol]), inc = parseMoney(r[inCol]);
+      if (o != null && o !== 0) a = -Math.abs(o);
+      else if (inc != null) a = Math.abs(inc);
+      else a = null;
+    }
+    if (a === null) continue;
+    tx.push({ d, n: ((descCol >= 0 && r[descCol]) || "Transaction").trim().slice(0, 60), a });
+  }
+  return tx.length ? tx : null;
+}
+
+let pendingStmtBank = null;
+window.importStatement = () => {
+  const banks = state.settings.banks || DEFAULT_BANKS;
+  actionSheet("Which bank is this statement from?", banks.map(b => ({
+    label: b, fn: () => { pendingStmtBank = b; $("#stmtFile").click(); }
+  })));
+};
+$("#stmtFile").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  ev.target.value = "";
+  const bank = pendingStmtBank;
+  pendingStmtBank = null;
+  if (!file || !bank) return;
+  let tx;
+  try { tx = parseStatement(await file.text()); } catch { tx = null; }
+  if (!tx) {
+    showAlert("Couldn't read that file", "It doesn't look like a bank CSV export. Export the statement as CSV from your banking app and try again.", [{ label: "OK", style: "bold", value: true }]);
+    return;
+  }
+  const cur = currentYM();
+  const byMonth = {};
+  for (const t of tx) {
+    const ym = t.d.slice(0, 7);
+    if (ym > cur) continue; // ignore future-dated rows
+    (byMonth[ym] = byMonth[ym] || []).push(t);
+  }
+  const months = Object.keys(byMonth).sort();
+  if (!months.length) return;
+  const out = tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
+  const inn = tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+  const ok = await confirmDialog("Import statement?",
+    `${bank}: ${tx.length} transactions (${months.map(monthShort).join(", ")}). Money out ${fmtPlain(out)}, in ${fmtPlain(inn)}. This replaces any earlier ${bank} import for these months.`,
+    "Import", "bold");
+  if (!ok) return;
+  for (const ym of months) {
+    if (!state.months[ym]) state.months[ym] = newMonth();
+    const m = state.months[ym];
+    m.statements = m.statements || {};
+    m.statements[bank] = {
+      imported: today().toISOString().slice(0, 10),
+      tx: byMonth[ym].sort((a, b) => a.a - b.a).slice(0, 500)
+    };
+  }
+  runEngine();
+  save();
+  expYM = months[months.length - 1];
+  render();
+});
+
+window.openStatementSheet = (ym, bank) => {
+  const m = monthData(ym);
+  const st = m?.statements?.[bank];
+  if (!st) return;
+  const out = st.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
+  const inn = st.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+  const tracked = expenseTotals(ym).paid;
+  // aggregate spend by description => "where the money actually went"
+  const agg = {};
+  for (const t of st.tx) if (t.a < 0) {
+    const k = t.n;
+    agg[k] = agg[k] || { total: 0, n: 0 };
+    agg[k].total += -t.a; agg[k].n++;
+  }
+  const top = Object.entries(agg).sort((a, b) => b[1].total - a[1].total).slice(0, 10);
+  const dayOf = d => `<span class="muted num" style="font-size:11px">${d.slice(8, 10)}</span>`;
+  openSheet(`${bank} — ${monthShort(ym)}`, `
+    <div class="card"><div class="pva-row">
+      <div class="pva-cat">Money out</div><div class="pva-val num neg">−${gbp.format(out)}</div>
+    </div><div class="pva-row">
+      <div class="pva-cat">Money in</div><div class="pva-val num pos">+${gbp.format(inn)}</div>
+    </div><div class="pva-row">
+      <div class="pva-cat">Tracked in app<small>expenses ticked paid this month</small></div><div class="pva-val num">${gbp.format(tracked)}</div>
+    </div></div>
+    ${top.length ? `<div class="section-header">Where it went</div>
+    <div class="card">${top.map(([name, v]) => `<div class="xrow">
+      <div class="x-main"><div class="x-name">${esc(name)}</div><div class="x-sub">${v.n} transaction${v.n > 1 ? "s" : ""}</div></div>
+      <div class="x-amt num">${gbp.format(v.total)}</div>
+    </div>`).join("")}</div>` : ""}
+    <div class="section-header">All transactions (${st.tx.length})</div>
+    <div class="card">${st.tx.map(t => `<div class="xrow">
+      <div class="x-main"><div class="x-name">${esc(t.n)} ${dayOf(t.d)}</div></div>
+      <div class="x-amt num ${t.a > 0 ? "pos" : ""}">${t.a > 0 ? "+" : "−"}${gbp.format(Math.abs(t.a))}</div>
+    </div>`).join("")}</div>
+    <button class="btn destructive" onclick="deleteStatement('${ym}','${esc(bank)}')">Remove this statement</button>
+  `, () => {}, { saveLabel: "Done" });
+};
+window.deleteStatement = async (ym, bank) => {
+  closeSheet();
+  if (await confirmDialog("Remove statement?", `Remove the ${bank} import for ${monthShort(ym)}? Your expenses are not affected.`, "Remove")) {
+    const m = monthData(ym);
+    if (m?.statements) delete m.statements[bank];
+    save(); render();
+  }
 };
 
 /* ---------- Loans ---------- */
@@ -1354,7 +1649,7 @@ function invalid(id, msg) { showAlert("Missing information", msg, [{ label: "OK"
 
 /* ---------- Expense sheet ---------- */
 // Remembered between "Save & Add Another" rounds so bulk entry is fast.
-let expDefaults = { method: "dd", category: "Regular" };
+let expDefaults = { method: "dd", category: "Regular", bankDD: "", bankMan: "" };
 
 function saveExpenseForm(e) {
   const m = monthData(expYM);
@@ -1366,12 +1661,13 @@ function saveExpenseForm(e) {
   const method = $("#fx-method .active").dataset.v;
   let category = val("fx-cat-sel") === "__custom" ? val("fx-cat-custom") : val("fx-cat-sel");
   if (!category) category = "Regular";
-  expDefaults = { method, category };
+  const bank = val("fx-bank") || null;
+  expDefaults = { ...expDefaults, method, category, [method === "dd" ? "bankDD" : "bankMan"]: bank || "" };
   if (e) {
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
-    e.method = method; e.category = category;
+    e.method = method; e.category = category; e.bank = bank;
     if (rec && !e.recurring) { // became recurring
-      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category };
+      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category, bank };
       state.recurring.push(t);
       e.recurring = true; e.recurringId = t.id;
     } else if (!rec && e.recurring) { // stopped recurring
@@ -1379,12 +1675,12 @@ function saveExpenseForm(e) {
       e.recurring = false; e.recurringId = null;
     } else if (rec && e.recurringId) { // keep template in sync for future months
       const t = state.recurring.find(t => t.id === e.recurringId);
-      if (t) { t.name = name; t.amount = amount; t.dueDay = dueDay; t.method = method; t.category = category; }
+      if (t) { t.name = name; t.amount = amount; t.dueDay = dueDay; t.method = method; t.category = category; t.bank = bank; }
     }
   } else {
-    const ex = { id: uid(), name, amount, dueDay, paid: false, recurring: rec, recurringId: null, method, category };
+    const ex = { id: uid(), name, amount, dueDay, paid: false, recurring: rec, recurringId: null, method, category, bank };
     if (rec) {
-      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category };
+      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category, bank };
       state.recurring.push(t);
       ex.recurringId = t.id;
     }
@@ -1399,6 +1695,8 @@ window.openExpenseSheet = (id) => {
   const e = id ? m.expenses.find(x => x.id === id) : null;
   const method = e ? (e.method || "manual") : expDefaults.method;
   const category = e ? (e.category || "Regular") : expDefaults.category;
+  const bank = e ? (e.bank || "") : (method === "dd" ? expDefaults.bankDD : expDefaults.bankMan);
+  const bankList = [...new Set([...(state.settings.banks || []), ...(bank ? [bank] : [])])];
   const stdCats = ["Regular", "Extra"];
   const isCustomCat = !stdCats.includes(category);
   openSheet(e ? "Edit Expense" : "New Expense", `
@@ -1416,6 +1714,7 @@ window.openExpenseSheet = (id) => {
         { value: "__custom", label: "Custom…" }
       ], isCustomCat ? category : category)}
       <div id="fx-cat-custom-row" class="hidden">${fText("fx-cat-custom", "Custom name", "", "e.g. Subscriptions")}</div>
+      ${fSelect("fx-bank", "Bank", [{ value: "", label: "None" }, ...bankList.map(b => ({ value: b, label: b }))], bank)}
       ${fSwitch("fx-rec", "Recurring monthly", e?.recurring)}
       ${e ? fSwitch("fx-paid", "Paid", e.paid) : ""}
     </div>
@@ -1688,32 +1987,46 @@ window.buyItem = async (id) => {
 window.openSettings = () => {
   const s = state.settings;
   openSheet("Settings", `
-    <div class="section-header" style="margin-top:4px">Monthly plan</div>
+    <div class="section-header" style="margin-top:4px">Income</div>
+    <div class="form-group">
+      ${fAmount("st-salary", "Monthly salary", s.salary || "")}
+      ${fAmount("st-income", "Expected freelance", s.expectedFreelance || "")}
+    </div>
+    <div class="form-hint">Salary + freelance received drive the "Remaining this month" figure. Set it once, update whenever it changes.</div>
+    <div class="section-header">Monthly plan</div>
     <div class="form-group">
       ${fAmount("st-spend", "Spending plan", s.spendingPlan || "")}
       ${fAmount("st-save", "Savings target", s.savingsTarget || "")}
-      ${fAmount("st-income", "Expected freelance", s.expectedFreelance || "")}
     </div>
-    <div class="form-hint">The spending plan drives the overspending part of your health score. Actual income entries override the freelance figure in the Plan view.</div>
+    <div class="form-hint">The spending plan drives the overspending part of your health score.</div>
+    <div class="section-header">Banks</div>
+    <div class="form-group">
+      ${fText("st-banks", "Banks", (s.banks || []).join(", "), "Monzo, Barclays…")}
+    </div>
+    <div class="form-hint">Comma-separated. Used for tagging expenses and importing bank statements.</div>
     <div class="section-header">Backup</div>
     <div class="form-group">
       <div class="form-row tappable" style="cursor:pointer" onclick="exportBackup()">
-        <label style="color:var(--accent)">Export backup…</label>
+        <label style="color:var(--accent-text)">Export backup…</label>
       </div>
       <div class="form-row tappable" style="cursor:pointer" onclick="importBackup()">
-        <label style="color:var(--accent)">Import backup…</label>
+        <label style="color:var(--accent-text)">Import backup…</label>
       </div>
     </div>
     <div class="form-hint">Export downloads all data as a JSON file. Import restores from one, replacing everything on this device.</div>
   `, () => {
+    const banks = val("st-banks").split(",").map(b => b.trim()).filter(Boolean);
     state.settings = {
+      ...state.settings,
       spendingPlan: num("st-spend"),
       savingsTarget: num("st-save"),
-      expectedFreelance: num("st-income")
+      expectedFreelance: num("st-income"),
+      salary: num("st-salary"),
+      banks: banks.length ? banks : [...DEFAULT_BANKS]
     };
     // keep the current month's plan snapshot in sync
     const m = monthData(currentYM());
-    if (m) m.plan = { ...state.settings };
+    if (m) m.plan = planSnapshot();
     save(); render();
   });
 };
