@@ -929,12 +929,13 @@ window.toggleRemaining = () => {
 };
 function remainingCard(ym) {
   const m = monthData(ym);
+  // Matches what's on the Expenses screen: income (salary + freelance received)
+  // minus expenses paid. Loan payments live on the Loans tab; money moved to
+  // savings is still yours — neither is silently removed here.
   const salary = m.plan.salary ?? (state.settings.salary || 0);
   const freelance = incomeReceivedFor(ym);
   const spent = expenseTotals(ym).paid;
-  const loans = loanPaidFor(ym);
-  const saved = m.savingsAdded || 0;
-  const remaining = salary + freelance - spent - loans - saved;
+  const remaining = salary + freelance - spent;
   const hidden = state.settings.hideRemaining;
   return `<div class="card remain-card">
     <h4>Remaining this month</h4>
@@ -1445,22 +1446,27 @@ function loanMonthsLeft(loan) {
   const diff = ymDiff(currentYM(), loan.endDate.slice(0, 7));
   return Math.max(0, diff);
 }
-// Amortised payoff projection from balance, monthly payment and APR.
-// Returns { months, interest, payoffYM, never } — never=true if the payment
-// doesn't even cover the monthly interest.
+// Payoff projection. Two models:
+//  - Fixed-term LOAN: the remaining balance already includes its interest
+//    (like a bank personal loan showing "amount remaining"), so what's left to
+//    pay is just the balance — no extra APR interest is added.
+//  - Credit CARD (revolving): APR accrues on the balance, so we amortise it and
+//    the extra interest is real. `never`=true if the payment can't cover it.
+// Returns { months, interest, payoffYM, totalLeft, never }.
 function loanProjection(loan) {
   const B = loan.remainingBalance, P = loan.monthlyPayment;
+  if (B <= 0) return { months: 0, interest: 0, payoffYM: null, totalLeft: 0, never: false };
+  if (P <= 0) return { months: null, interest: null, payoffYM: null, totalLeft: null, never: true };
   const r = (loan.apr || 0) / 100 / 12;
-  if (B <= 0) return { months: 0, interest: 0, payoffYM: null, never: false };
-  if (P <= 0) return { months: null, interest: null, payoffYM: null, never: true };
-  if (r === 0) {
-    const months = Math.ceil(B / P);
-    return { months, interest: 0, payoffYM: ymAdd(currentYM(), months), never: false };
+  if (loan.type === "card" && r > 0) {
+    if (P <= B * r) return { months: null, interest: null, payoffYM: null, totalLeft: null, never: true };
+    const months = Math.ceil(-Math.log(1 - (r * B) / P) / Math.log(1 + r));
+    const interest = Math.max(0, +(P * months - B).toFixed(2));
+    return { months, interest, payoffYM: ymAdd(currentYM(), months), totalLeft: +(B + interest).toFixed(2), never: false };
   }
-  if (P <= B * r) return { months: null, interest: null, payoffYM: null, never: true };
-  const months = Math.ceil(-Math.log(1 - (r * B) / P) / Math.log(1 + r));
-  const interest = Math.max(0, +(P * months - B).toFixed(2));
-  return { months, interest, payoffYM: ymAdd(currentYM(), months), never: false };
+  // Fixed loan (or 0% card): pay the balance down at the monthly payment.
+  const months = Math.ceil(B / P);
+  return { months, interest: 0, payoffYM: ymAdd(currentYM(), months), totalLeft: B, never: false };
 }
 // Progress stats. If the total amount was entered, use it; otherwise estimate
 // the original total from payments made so far + any extra payments, so the
@@ -1522,9 +1528,12 @@ function renderLoans() {
         <div class="stat-grid">
           <div class="stat-cell"><div class="sc-label">${done ? "Status" : "Final payment"}</div><div class="sc-val num">${done ? "Paid off 🎉" : proj.never ? "—" : proj.payoffYM ? monthShort(proj.payoffYM) : "Now"}</div></div>
           <div class="stat-cell"><div class="sc-label">Months left</div><div class="sc-val num">${done ? "0" : proj.never ? "—" : (proj.months ?? 0)}</div></div>
-          <div class="stat-cell"><div class="sc-label">Interest left${l.apr ? "" : " (set APR)"}</div><div class="sc-val num">${proj.never ? "—" : gbp.format(proj.interest || 0)}</div></div>
-          <div class="stat-cell"><div class="sc-label">Total left to pay</div><div class="sc-val num">${proj.never ? "—" : gbp.format(l.remainingBalance + (proj.interest || 0))}</div></div>
+          ${isCard
+            ? `<div class="stat-cell"><div class="sc-label">Interest left${l.apr ? "" : " (set APR)"}</div><div class="sc-val num">${proj.never ? "—" : gbp.format(proj.interest || 0)}</div></div>`
+            : `<div class="stat-cell"><div class="sc-label">Monthly</div><div class="sc-val num">${gbp.format(l.monthlyPayment)}</div></div>`}
+          <div class="stat-cell"><div class="sc-label">Total left to pay</div><div class="sc-val num">${proj.never ? "—" : gbp.format(proj.totalLeft)}</div></div>
         </div>
+        ${!isCard && l.apr ? `<div class="footer-note" style="text-align:left;padding:8px 0 0">Interest is already included in the balance for a fixed loan, so it isn't added again.</div>` : ""}
         ${proj.never && l.remainingBalance > 0 ? `<div class="footer-note" style="text-align:left;padding:8px 0 0"><span class="warn">Payment doesn't cover the interest — the balance won't reduce.</span></div>` : ""}
       </div>
       ${done ? "" : `<div style="border-top:0.5px solid var(--separator);padding:6px"><button class="btn small tinted" style="width:100%" onclick="openPayExtra('${l.id}')">＋ Pay Extra</button></div>`}
@@ -1543,10 +1552,10 @@ function renderLoans() {
       </div><div class="pva-row">
         <div class="pva-cat">Total remaining</div>
         <div class="pva-val num">${gbp.format(totalRemaining)}</div>
-      </div><div class="pva-row">
-        <div class="pva-cat">Interest still to pay<small>at current payments &amp; APR</small></div>
+      </div>${totalInterest > 0 ? `<div class="pva-row">
+        <div class="pva-cat">Card interest still to pay<small>at current payments &amp; APR</small></div>
         <div class="pva-val num warn">${gbp.format(totalInterest)}</div>
-      </div></div>
+      </div>` : ""}</div>
       ${cards}
       <button class="btn primary add-fab" onclick="openLoanSheet()">＋ Add Loan or Card</button>`
       : emptyState(emptyIcon, "No loans or cards", "Track loans and credit cards. Add the APR to see your payoff date and how much interest is left.", "Add Loan or Card", "openLoanSheet()")}
@@ -1890,7 +1899,7 @@ window.openLoanSheet = (id) => {
       ${fDay("fl-dd", "Direct debit day", l?.ddDay ?? "")}
       <div class="form-row"><label for="fl-apr">APR %</label><input type="number" id="fl-apr" inputmode="decimal" step="0.1" min="0" value="${l?.apr || ""}" placeholder="e.g. 24.9"></div>
     </div>
-    <div class="form-hint"><b>Starting balance</b> is the original amount you borrowed — enter it for an exact "% paid off", or leave it blank and the app estimates it. The final payoff date is worked out automatically from the balance, payment and APR. Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month.</div>
+    <div class="form-hint"><b>Starting balance</b> is what you owed at the start — enter it for an exact "% paid off", or leave it blank to estimate. For a <b>Loan</b>, the remaining balance already includes interest, so the payoff date is just balance ÷ payment. For a <b>Credit card</b>, APR adds interest on top. Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month.</div>
     ${l ? `<div class="form-group">${fSwitch("fl-skip", `Skip ${monthShort(cur)} payment`, skipped)}</div>
     <div class="form-hint">Skipping stops (or reverses) this month's automatic balance reduction. Edit the balance above any time to correct for over/underpayments.</div>` :
     `<div class="form-hint">The balance drops by the monthly payment automatically each time the direct debit day passes.</div>`}
