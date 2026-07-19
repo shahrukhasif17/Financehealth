@@ -70,9 +70,11 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 - `loans[]` — `type` (`"loan"`|`"card"` credit card), `apr`, optional `endDate`,
   `originalTotal` (0/absent = estimate), `extraTotal` (cumulative overpayments), plus
   `appliedMonths[]`/`skippedMonths[]` for **idempotent** direct-debit auto-reduction,
-  `startMonth`. `loanProjection()` amortises balance/payment/APR into months-left,
-  interest and the **auto payoff/final-payment date** (flags `never` when the payment
-  doesn't cover monthly interest). `loanStats()` gives % paid + total: uses the entered
+  `startMonth`. `loanProjection()` has **two models**: a fixed-term **loan** treats the
+  remaining balance as already including interest (payoff = balance ÷ payment, no extra
+  interest added — matches how banks show "amount remaining"); a **card** amortises
+  balance/payment/APR so interest accrues (flags `never` when the payment can't cover it).
+  Returns `totalLeft` (what's actually left to pay). `loanStats()` gives % paid + total: uses the entered
   `originalTotal`, or estimates it from payments-made + `extraTotal` when total is blank.
   "Pay Extra" (`openPayExtra`) drops the balance now and everything recalculates.
   `loanPaidByDD()` shows a "linked to an automatic payment" badge when a paid dd/so
