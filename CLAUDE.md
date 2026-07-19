@@ -53,14 +53,17 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 - `recurring[]` — recurring-expense templates (`startMonth`, optional `endMonth` for
   installment expiry, plus `method`/`category`). Month generation instantiates active
   templates into each month.
-- Every expense (and template) carries **`method`** (`"dd"` direct debit | `"manual"`),
-  **`category`** (`"Regular"` | `"Extra"` | free-text custom) and optional **`bank`**.
-  `migrate()` in `load()` backfills them on old data. The Expenses tab has filter chips
-  (All / Direct Debit / Manual / per-category / per-bank-used), compact rows (lime
-  `ddbar` = direct debit, due day as a minimal 2-digit number beside the name,
-  colour-coded method/category labels, checkbox on the right, 3-dot `actionSheet` menu
-  per row) and a "Save & Add Another" bulk-add flow that remembers the last
-  method/category/bank.
+- Every expense (and template) carries **`method`** (`"dd"` direct debit | `"so"`
+  standing order | `"manual"`), **`category`** (`"Regular"` | `"Extra"` | free-text
+  custom) and optional **`bank`**. `migrate()` in `load()` backfills them on old data.
+  Compact rows: coloured `ddbar` (lime=dd, teal=so, none=manual), due day as a minimal
+  2-digit number beside the name, colour-coded method/category labels, checkbox on the
+  right, 3-dot `actionSheet` menu per row; "Save & Add Another" bulk-add remembers the
+  last method/category/bank. **Standing orders (`method:"so"`) render in their own
+  section** in the Expenses tab (above the main list); the main Expenses list shows
+  dd+manual only. Filtering is a single **Filter menu** (`openExpenseFilter()`, a grouped
+  sheet: Payment type / Category / Bank) driving `expFilter`, shown via a "Filter: X ▾"
+  button — no more chip strip.
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.

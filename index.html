@@ -43,6 +43,7 @@
   --chip-active-text: #FFFFFF;
   --manual: #2F6BD8;
   --violet: #6D5BD0;
+  --so: #0E9F8E;
   --shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 @media (prefers-color-scheme: dark) {
@@ -71,6 +72,7 @@
     --chip-active-text: #0B0B0C;
     --manual: #82B4FF;
     --violet: #BCA9FF;
+    --so: #4FD8C4;
     --shadow: none;
   }
 }
@@ -237,6 +239,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--fill); color: var(--text-2); transition: background 200ms ease-out, color 200ms ease-out;
 }
 .segmented button.active { background: var(--chip-active-bg); color: var(--chip-active-text); }
+.segmented.three { gap: 6px; }
+.segmented.three button { font-size: 12.5px; padding: 10px 2px; letter-spacing: -0.2px; }
 
 /* ============ Filter chips ============ */
 .chips {
@@ -291,6 +295,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .ddbar { width: 4px; height: 30px; border-radius: 2px; background: var(--fill-strong); flex-shrink: 0; }
 .ddbar.dd { background: var(--accent); }
+.ddbar.so { background: var(--so); }
 .x-main { flex: 1; min-width: 0; }
 .x-name { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .x-due { font-size: 11px; font-weight: 600; color: var(--text-3); margin-left: 6px; }
@@ -299,7 +304,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .mm-dd { color: var(--accent-text); opacity: 0.8; }
+.mm-so { color: var(--so); opacity: 0.95; }
 .mm-man { color: var(--manual); opacity: 0.85; }
+/* Filter menu button */
+.filter-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--fill); color: var(--text); font-size: 13px; font-weight: 600; }
+.filter-btn .fb-val { color: var(--accent-text); }
+.filter-btn svg { width: 12px; height: 12px; opacity: 0.6; }
+.filter-clear { padding: 8px 12px; border-radius: 999px; background: var(--fill); color: var(--text-2); font-size: 13px; font-weight: 600; margin-left: 8px; }
+/* filter sheet rows */
+.fltrow { display: flex; align-items: center; padding: 13px 14px; position: relative; cursor: pointer; }
+.fltrow:not(:last-child)::after { content: ""; position: absolute; left: 14px; right: 0; bottom: 0; border-bottom: 0.5px solid var(--separator); }
+.fltrow .fl-label { flex: 1; font-size: 16px; }
+.fltrow .fl-check { color: var(--accent-text); opacity: 0; }
+.fltrow.on .fl-check { opacity: 1; }
+.fltrow .fl-check svg { width: 18px; height: 18px; }
 .cat-extra { color: var(--amber); opacity: 0.9; }
 .cat-custom { color: var(--violet); opacity: 0.9; }
 
@@ -1060,10 +1078,22 @@ const dots = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12
 function expenseMatches(e, f) {
   if (f === "all") return true;
   if (f === "dd") return e.method === "dd";
-  if (f === "manual") return e.method !== "dd";
+  if (f === "so") return e.method === "so";
+  if (f === "manual") return e.method === "manual";
   if (f.startsWith("bank:")) return (e.bank || "") === f.slice(5);
   return (e.category || "Regular") === f;
 }
+function filterLabel(f) {
+  if (f === "all") return "All";
+  if (f === "dd") return "Direct Debit";
+  if (f === "so") return "Standing Order";
+  if (f === "manual") return "Manual";
+  if (f.startsWith("bank:")) return f.slice(5);
+  return f;
+}
+const methodMeta = m => m === "dd" ? { cls: "mm-dd", label: "Direct debit", bar: "dd" }
+  : m === "so" ? { cls: "mm-so", label: "Standing order", bar: "so" }
+  : { cls: "mm-man", label: "Manual", bar: "" };
 
 function renderExpenses() {
   const keys = sortedMonthKeys();
@@ -1074,22 +1104,14 @@ function renderExpenses() {
   const { due, paid } = expenseTotals(ym);
   const pct = due > 0 ? Math.min(100, paid / due * 100) : 0;
 
-  // filter chips: fixed method filters + categories + banks used this month
-  const cats = [...new Set(["Regular", "Extra", ...m.expenses.map(e => e.category || "Regular")])];
-  const banksUsed = [...new Set(m.expenses.map(e => e.bank).filter(Boolean))];
-  const chipDefs = [
-    { key: "all", label: "All" },
-    { key: "dd", label: "Direct Debit" },
-    { key: "manual", label: "Manual" },
-    ...cats.map(c => ({ key: c, label: c })),
-    ...banksUsed.map(b => ({ key: "bank:" + b, label: b }))
-  ];
-  if (!chipDefs.some(c => c.key === expFilter)) expFilter = "all";
-  const chips = chipDefs.map(c =>
-    `<button class="chip ${expFilter === c.key ? "active" : ""}" onclick="setExpFilter('${esc(c.key)}')">${esc(c.label)}</button>`
-  ).join("");
-
-  const list = m.expenses.filter(e => expenseMatches(e, expFilter))
+  // Standing orders get their own section; the main list is everything else,
+  // narrowed by the single Filter menu.
+  const soItems = m.expenses.filter(e => e.method === "so")
+    .sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32) || a.name.localeCompare(b.name));
+  const soTot = soItems.reduce((s, e) => s + e.amount, 0);
+  const soPaid = soItems.filter(e => e.paid).reduce((s, e) => s + e.amount, 0);
+  const others = m.expenses.filter(e => e.method !== "so");
+  const list = others.filter(e => expenseMatches(e, expFilter))
     .sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32) || a.name.localeCompare(b.name));
   const fTot = list.reduce((s, e) => s + e.amount, 0);
 
@@ -1111,16 +1133,17 @@ function renderExpenses() {
     </div>`;
   }).join("");
 
-  const rows = list.map(e => {
+  const expRow = e => {
     const overdue = isOverdue(e, ym);
     const cat = e.category || "Regular";
+    const mm = methodMeta(e.method);
     const bits = [
-      `<span class="${e.method === "dd" ? "mm-dd" : "mm-man"}">${e.method === "dd" ? "Direct debit" : "Manual"}</span>`,
+      `<span class="${mm.cls}">${mm.label}</span>`,
       cat === "Regular" ? null : `<span class="${cat === "Extra" ? "cat-extra" : "cat-custom"}">${esc(cat)}</span>`,
       e.bank ? `<span>${esc(e.bank)}</span>` : null
     ].filter(Boolean).join(" · ");
     return `<div class="xrow">
-      <span class="ddbar ${e.method === "dd" ? "dd" : ""}"></span>
+      <span class="ddbar ${mm.bar}"></span>
       <div class="x-main">
         <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
         <div class="x-sub">${bits}</div>
@@ -1130,7 +1153,9 @@ function renderExpenses() {
       <button class="check sm ${e.paid ? "on" : ""}" ${readOnly ? "disabled" : ""}
         onclick="togglePaid('${ym}','${e.id}')" aria-label="Mark paid">${tick}</button>
     </div>`;
-  }).join("");
+  };
+  const rows = list.map(expRow).join("");
+  const soRows = soItems.map(expRow).join("");
 
   const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5"/><path d="M3 9.5h18"/><path d="M6.5 14.5h4"/></svg>';
 
@@ -1150,6 +1175,11 @@ function renderExpenses() {
     ${!readOnly ? `<button class="btn tinted" onclick="openIncomeSheet()">＋ Add Freelance Income</button>
       ${flPending ? `<div class="footer-note num">${gbp.format(flPending)} freelance still pending</div>` : ""}` : ""}
 
+    ${(soItems.length || !readOnly) ? `<div class="section-header">Standing Orders${soItems.length ? `<span class="sh-action num">${gbp.format(soPaid)} / ${gbp.format(soTot)}</span>` : ""}</div>
+      ${soItems.length ? `<div class="card">${soRows}</div>`
+        : `<div class="card card-pad muted" style="font-size:13px;line-height:1.5">Regular fixed payments you set up yourself (e.g. rent, savings transfers, paying a person). They go out automatically each month.</div>`}
+      ${!readOnly ? `<button class="btn tinted" onclick="openExpenseSheet(null,'so')">＋ Add Standing Order</button>` : ""}` : ""}
+
     <div class="section-header">Expenses<span class="sh-action num">${gbp.format(paid)} / ${gbp.format(due)}</span></div>
     <div class="card" style="padding:12px 16px">
       <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">
@@ -1158,19 +1188,41 @@ function renderExpenses() {
       </div>
       <div class="progress ${paid >= due && due > 0 ? "green" : ""}" style="height:5px"><div style="width:${pct}%"></div></div>
     </div>
-    ${m.expenses.length ? `<div class="chips">${chips}</div>` : ""}
-    ${m.expenses.length
+    ${others.length ? `<div style="margin-bottom:12px;display:flex;align-items:center">
+        <button class="filter-btn" onclick="openExpenseFilter()">Filter: <span class="fb-val">${esc(filterLabel(expFilter))}</span> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        ${expFilter !== "all" ? `<button class="filter-clear" onclick="setExpFilter('all')">Clear</button>` : ""}
+      </div>` : ""}
+    ${others.length
       ? (list.length
           ? `<div class="card">${rows}</div>
              ${expFilter !== "all" ? `<div class="footer-note num">${list.length} item${list.length === 1 ? "" : "s"} · ${gbp.format(fTot)}</div>` : ""}`
           : `<div class="card card-pad muted" style="font-size:15px">Nothing matches this filter for ${monthShort(ym)}.</div>`)
-      : emptyState(emptyIcon, "No expenses yet",
+      : (soItems.length ? "" : emptyState(emptyIcon, "No expenses yet",
           readOnly ? "Nothing was recorded for this month." : "Add your bills and outgoings for this month. Recurring ones roll over automatically.",
-          readOnly ? null : "Add Expense", "openExpenseSheet()")}
-    ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
+          readOnly ? null : "Add Expense", "openExpenseSheet()"))}
+    ${!readOnly ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
 }
+
+/* Filter menu — one place for every filter option */
+window.openExpenseFilter = () => {
+  const m = monthData(expYM);
+  const others = m.expenses.filter(e => e.method !== "so");
+  const cats = [...new Set(["Regular", "Extra", ...others.map(e => e.category || "Regular")])];
+  const banksUsed = [...new Set(others.map(e => e.bank).filter(Boolean))];
+  const opt = (key, label) => `<div class="fltrow ${expFilter === key ? "on" : ""}" onclick="pickFilter('${esc(key)}')">
+    <span class="fl-label">${esc(label)}</span><span class="fl-check">${tick}</span></div>`;
+  openSheet("Filter Expenses", `
+    <div class="section-header" style="margin-top:2px">Payment type</div>
+    <div class="form-group">${opt("all", "All")}${opt("dd", "Direct Debit")}${opt("manual", "Manual")}</div>
+    <div class="section-header">Category</div>
+    <div class="form-group">${cats.map(c => opt(c, c)).join("")}</div>
+    ${banksUsed.length ? `<div class="section-header">Bank</div>
+      <div class="form-group">${banksUsed.map(b => opt("bank:" + b, b)).join("")}</div>` : ""}
+  `, () => {}, { saveLabel: "Done" });
+};
+window.pickFilter = (key) => { expFilter = key; closeSheet(); render(); };
 
 /* Per-row 3-dot menu */
 window.openExpenseMenu = (id) => {
@@ -1179,17 +1231,12 @@ window.openExpenseMenu = (id) => {
   if (!e) return;
   actionSheet(`${e.name} · ${fmtPlain(e.amount)}`, [
     { label: "Edit", fn: () => openExpenseSheet(id) },
-    { label: e.method === "dd" ? "Mark as manual transfer" : "Mark as direct debit", fn: () => {
-        e.method = e.method === "dd" ? "manual" : "dd";
-        if (e.recurringId) { const t = state.recurring.find(t => t.id === e.recurringId); if (t) t.method = e.method; }
-        save(); render();
-      } },
     { label: e.recurring ? "Stop recurring" : "Make recurring monthly", fn: () => {
         if (e.recurring) {
           state.recurring = state.recurring.filter(t => t.id !== e.recurringId);
           e.recurring = false; e.recurringId = null;
         } else {
-          const t = { id: uid(), name: e.name, amount: e.amount, dueDay: e.dueDay, startMonth: expYM, endMonth: null, method: e.method, category: e.category };
+          const t = { id: uid(), name: e.name, amount: e.amount, dueDay: e.dueDay, startMonth: expYM, endMonth: null, method: e.method, category: e.category, bank: e.bank || null };
           state.recurring.push(t);
           e.recurring = true; e.recurringId = t.id;
         }
@@ -1423,12 +1470,13 @@ function loanProjection(loan) {
   const interest = Math.max(0, +(P * months - B).toFixed(2));
   return { months, interest, payoffYM: ymAdd(currentYM(), months), never: false };
 }
-// True if a paid direct-debit expense this month has the same name as the loan/card.
+// True if a paid automatic (direct debit / standing order) expense this month
+// has the same name as the loan/card.
 function loanPaidByDD(loan) {
   const m = monthData(currentYM());
   if (!m) return false;
   const nm = loan.name.trim().toLowerCase();
-  return m.expenses.some(e => e.method === "dd" && e.paid && e.name.trim().toLowerCase() === nm);
+  return m.expenses.some(e => (e.method === "dd" || e.method === "so") && e.paid && e.name.trim().toLowerCase() === nm);
 }
 const boltIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>';
 function renderLoans() {
@@ -1459,7 +1507,7 @@ function renderLoans() {
         </div>
         <div style="font-size:30px;font-weight:700;letter-spacing:-0.8px;margin:10px 0 2px">${fmtRich(l.remainingBalance)}</div>
         <div class="muted" style="font-size:13px">remaining${statusBit ? " · " + statusBit : ""}</div>
-        ${linked ? `<div class="link-badge" style="margin-top:6px">${boltIcon} Linked to a direct debit this month</div>` : ""}
+        ${linked ? `<div class="link-badge" style="margin-top:6px">${boltIcon} Linked to an automatic payment this month</div>` : ""}
         <div class="progress green" style="margin-top:10px"><div style="width:${pct}%"></div></div>
         <div class="muted num" style="font-size:12px;margin-top:6px">${gbp.format(paidOff)} of ${gbp.format(orig)} paid off (${Math.round(pct)}%)</div>
         <div class="stat-grid">
@@ -1700,7 +1748,8 @@ function invalid(id, msg) { showAlert("Missing information", msg, [{ label: "OK"
 
 /* ---------- Expense sheet ---------- */
 // Remembered between "Save & Add Another" rounds so bulk entry is fast.
-let expDefaults = { method: "dd", category: "Regular", bankDD: "", bankMan: "" };
+let expDefaults = { method: "dd", category: "Regular", bankDD: "", bankSO: "", bankMan: "" };
+const bankKeyFor = m => m === "dd" ? "bankDD" : m === "so" ? "bankSO" : "bankMan";
 
 function saveExpenseForm(e) {
   const m = monthData(expYM);
@@ -1716,7 +1765,7 @@ function saveExpenseForm(e) {
   // Optional expiry for recurring payments (e.g. "only 3 payments left")
   const endVal = val("fx-end");
   const endMonth = (rec && endVal) ? endVal.slice(0, 7) : null;
-  expDefaults = { ...expDefaults, method, category, [method === "dd" ? "bankDD" : "bankMan"]: bank || "" };
+  expDefaults = { ...expDefaults, method, category, [bankKeyFor(method)]: bank || "" };
   if (e) {
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
     e.method = method; e.category = category; e.bank = bank;
@@ -1744,21 +1793,23 @@ function saveExpenseForm(e) {
   return true;
 }
 
-window.openExpenseSheet = (id) => {
+window.openExpenseSheet = (id, presetMethod) => {
   const m = monthData(expYM);
   const e = id ? m.expenses.find(x => x.id === id) : null;
-  const method = e ? (e.method || "manual") : expDefaults.method;
+  const method = e ? (e.method || "manual") : (presetMethod || expDefaults.method);
   const category = e ? (e.category || "Regular") : expDefaults.category;
-  const bank = e ? (e.bank || "") : (method === "dd" ? expDefaults.bankDD : expDefaults.bankMan);
+  const bank = e ? (e.bank || "") : expDefaults[bankKeyFor(method)];
   const bankList = [...new Set([...(state.settings.banks || []), ...(bank ? [bank] : [])])];
   const stdCats = ["Regular", "Extra"];
   const isCustomCat = !stdCats.includes(category);
   const tmpl = e && e.recurringId ? state.recurring.find(t => t.id === e.recurringId) : null;
   const endVal = tmpl && tmpl.endMonth ? tmpl.endMonth + "-01" : "";
-  openSheet(e ? "Edit Expense" : "New Expense", `
-    <div class="segmented form-seg" id="fx-method">
-      <button type="button" class="${method === "dd" ? "active" : ""}" data-v="dd">Direct Debit</button>
-      <button type="button" class="${method !== "dd" ? "active" : ""}" data-v="manual">Manual</button>
+  const seg = v => `<button type="button" class="${method === v ? "active" : ""}" data-v="${v}">`;
+  openSheet(e ? "Edit Expense" : (presetMethod === "so" ? "New Standing Order" : "New Expense"), `
+    <div class="segmented form-seg three" id="fx-method">
+      ${seg("dd")}Direct Debit</button>
+      ${seg("so")}Standing Order</button>
+      ${seg("manual")}Manual</button>
     </div>
     <div class="form-group">
       ${fText("fx-name", "Name", e?.name || "", "e.g. Rent")}
