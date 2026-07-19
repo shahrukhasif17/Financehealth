@@ -505,6 +505,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stat-cell .sc-val { font-size: 15px; font-weight: 600; margin-top: 3px; }
 .loan-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 8px; background: var(--fill); color: var(--text-2); vertical-align: 2px; margin-left: 8px; }
 .loan-tag.card { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+.loan-tag.loan { background: color-mix(in srgb, var(--manual) 22%, transparent); color: var(--manual); }
 .link-badge { font-size: 11px; font-weight: 600; color: var(--accent-text); display: inline-flex; align-items: center; gap: 3px; }
 .link-badge svg { width: 12px; height: 12px; }
 </style>
@@ -1510,7 +1511,7 @@ function renderLoans() {
       <div class="card-pad tappable" onclick="openLoanSheet('${l.id}')" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div style="font-size:17px;font-weight:600">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : ""}">${isCard ? "Card" : "Loan"}</span></div>
+            <div style="font-size:17px;font-weight:600;color:${isCard ? "var(--violet)" : "var(--manual)"}">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : "loan"}">${isCard ? "Card" : "Loan"}</span></div>
             <div class="muted num" style="font-size:13px;margin-top:2px">${gbp.format(l.monthlyPayment)}/mo · DD ${ordinal(l.ddDay)}${l.apr ? ` · ${l.apr}% APR` : ""}</div>
           </div>
           <div class="chevron">${chevronSmall}</div>
