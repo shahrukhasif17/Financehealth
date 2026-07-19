@@ -1885,12 +1885,12 @@ window.openLoanSheet = (id) => {
     <div class="form-group">
       ${fText("fl-name", "Name", l?.name || "", "e.g. Car finance")}
       ${fAmount("fl-balance", "Remaining balance", l?.remainingBalance ?? "")}
-      ${fAmount("fl-total", "Total amount (optional)", (l && l.originalTotal > 0) ? l.originalTotal : "")}
+      ${fAmount("fl-total", "Starting balance (optional)", (l && l.originalTotal > 0) ? l.originalTotal : "")}
       ${fAmount("fl-payment", "Monthly payment", l?.monthlyPayment ?? "")}
       ${fDay("fl-dd", "Direct debit day", l?.ddDay ?? "")}
       <div class="form-row"><label for="fl-apr">APR %</label><input type="number" id="fl-apr" inputmode="decimal" step="0.1" min="0" value="${l?.apr || ""}" placeholder="e.g. 24.9"></div>
     </div>
-    <div class="form-hint">Leave <b>Total</b> blank and the app estimates how much you've paid off. The final payoff date is worked out automatically from the balance, payment and APR. Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month.</div>
+    <div class="form-hint"><b>Starting balance</b> is the original amount you borrowed — enter it for an exact "% paid off", or leave it blank and the app estimates it. The final payoff date is worked out automatically from the balance, payment and APR. Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month.</div>
     ${l ? `<div class="form-group">${fSwitch("fl-skip", `Skip ${monthShort(cur)} payment`, skipped)}</div>
     <div class="form-hint">Skipping stops (or reverses) this month's automatic balance reduction. Edit the balance above any time to correct for over/underpayments.</div>` :
     `<div class="form-hint">The balance drops by the monthly payment automatically each time the direct debit day passes.</div>`}
