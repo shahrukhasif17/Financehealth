@@ -59,11 +59,11 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
   Compact rows: coloured `ddbar` (lime=dd, teal=so, none=manual), due day as a minimal
   2-digit number beside the name, colour-coded method/category labels, checkbox on the
   right, 3-dot `actionSheet` menu per row; "Save & Add Another" bulk-add remembers the
-  last method/category/bank. **Standing orders (`method:"so"`) render in their own
-  section** in the Expenses tab (above the main list); the main Expenses list shows
-  dd+manual only. Filtering is a single **Filter menu** (`openExpenseFilter()`, a grouped
-  sheet: Payment type / Category / Bank) driving `expFilter`, shown via a "Filter: X ▾"
-  button — no more chip strip.
+  last method/category/bank. Standing order (`method:"so"`) is just another payment type
+  alongside dd/manual — it shows in the normal expenses list (teal bar), NOT a separate
+  section. Filtering is a single **Filter menu** (`openExpenseFilter()`, a grouped sheet:
+  Payment type incl. Standing Order when present / Category / Bank) driving `expFilter`,
+  shown via a "Filter: X ▾" button — no chip strip.
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.
