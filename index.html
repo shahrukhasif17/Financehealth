@@ -929,12 +929,13 @@ window.toggleRemaining = () => {
 };
 function remainingCard(ym) {
   const m = monthData(ym);
+  // Matches what's on the Expenses screen: income (salary + freelance received)
+  // minus expenses paid. Loan payments live on the Loans tab; money moved to
+  // savings is still yours — neither is silently removed here.
   const salary = m.plan.salary ?? (state.settings.salary || 0);
   const freelance = incomeReceivedFor(ym);
   const spent = expenseTotals(ym).paid;
-  const loans = loanPaidFor(ym);
-  const saved = m.savingsAdded || 0;
-  const remaining = salary + freelance - spent - loans - saved;
+  const remaining = salary + freelance - spent;
   const hidden = state.settings.hideRemaining;
   return `<div class="card remain-card">
     <h4>Remaining this month</h4>

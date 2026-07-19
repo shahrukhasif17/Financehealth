@@ -41,7 +41,8 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 - `settings` — `spendingPlan`, `savingsTarget`, `expectedFreelance`, `salary` (monthly £
   figures), `banks[]` (user's bank names, default Monzo/Barclays/Halifax/Tesco),
   `hideRemaining` (privacy toggle for the "Remaining this month" card, which shows
-  salary + freelance received − spent − loans − saved on Home and Expenses).
+  salary + freelance received − expenses paid on Home and Expenses — deliberately NOT
+  minus loan payments or savings, so it reconciles with the Income/Expenses shown).
 - `months` — keyed `"YYYY-MM"`. Each: `expenses[]`, `savingsAdded`, `plan` (a snapshot
   via `planSnapshot()` taken when the month was created, so history survives settings
   changes; saving Settings re-syncs only the *current* month's snapshot), and optional
