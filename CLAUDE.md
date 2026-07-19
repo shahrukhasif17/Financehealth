@@ -13,16 +13,12 @@ iPhone via Safari's **Add to Home Screen**. Currency is **£ GBP** (`£1,250.50`
 - **iOS PWA specifics:** `viewport-fit=cover`, `apple-mobile-web-app-capable`,
   `black-translucent` status bar, safe-area insets on header/tab bar, inputs ≥16px font
   so Safari doesn't zoom on focus.
-- **Design language** (user-chosen, replaces the original Apple-blue look): dark-first
-  fintech style with a **lime accent `#CDF656`** (black text on lime), near-black
-  `#090909` background with `#161618` cards in dark mode, `#F4F4F6`/white in light mode
-  (auto via CSS variables + `prefers-color-scheme`; light mode uses olive `#5C7A00` for
-  accent-coloured *text* since lime fails contrast on white). **Outfit font embedded as a
-  base64 data-URI `@font-face`** (latin subset — keep it inline, no network fetch).
-  Pill-shaped buttons/chips (999px radius), 20px card radius, inverse-pill active states
-  (black chip on light / white chip on dark), big figures with muted pence (`fmtRich`),
-  frosted header/tab bar, hairlines, tabular numerals, 150–250ms ease-out transitions.
-  Semantic red/amber kept; "green" IS the lime in dark mode.
+- **Design language is Apple/iOS** (Health/Wallet/Settings feel): system font stack,
+  auto light/dark via CSS variables + `prefers-color-scheme` (light `#F2F2F7` grouped
+  background; dark true black `#000` with `#1C1C1E` cards), Apple blue accent
+  (`#007AFF`/`#0A84FF`), semantic red/green/amber, frosted-glass header and tab bar,
+  0.5px hairlines, tabular numerals, restrained 150–250ms ease-out transitions.
+  No orange/beige palettes, nothing bouncy.
 
 ## Files
 
@@ -38,29 +34,12 @@ iPhone via Safari's **Add to Home Screen**. Currency is **£ GBP** (`£1,250.50`
 All data is one JSON blob in `localStorage` under the key **`financeHealth_v1`**.
 Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index.html`):
 
-- `settings` — `spendingPlan`, `savingsTarget`, `expectedFreelance`, `salary` (monthly £
-  figures), `banks[]` (user's bank names, default Monzo/Barclays/Halifax/Tesco),
-  `hideRemaining` (privacy toggle for the "Remaining this month" card, which shows
-  salary + freelance received − spent − loans − saved on Home and Expenses).
-- `months` — keyed `"YYYY-MM"`. Each: `expenses[]`, `savingsAdded`, `plan` (a snapshot
-  via `planSnapshot()` taken when the month was created, so history survives settings
-  changes; saving Settings re-syncs only the *current* month's snapshot), and optional
-  `statements` — `{bankName: {imported, tx:[{d,n,a}]}}` from CSV imports (`a` < 0 =
-  money out). `parseStatement()` auto-detects date/amount/description columns and both
-  signed-amount (Monzo/Barclays) and debit+credit-column (Halifax) CSV layouts;
-  transactions are distributed into months by date. The statement sheet shows totals,
-  a "Where it went" aggregation, and comparison against tracked paid expenses.
+- `settings` — `spendingPlan`, `savingsTarget`, `expectedFreelance` (monthly £ figures).
+- `months` — keyed `"YYYY-MM"`. Each: `expenses[]`, `savingsAdded`, and `plan` (a snapshot
+  of settings taken when the month was created, so history survives settings changes;
+  saving Settings re-syncs only the *current* month's snapshot).
 - `recurring[]` — recurring-expense templates (`startMonth`, optional `endMonth` for
-  installment expiry, plus `method`/`category`). Month generation instantiates active
-  templates into each month.
-- Every expense (and template) carries **`method`** (`"dd"` direct debit | `"manual"`),
-  **`category`** (`"Regular"` | `"Extra"` | free-text custom) and optional **`bank`**.
-  `migrate()` in `load()` backfills them on old data. The Expenses tab has filter chips
-  (All / Direct Debit / Manual / per-category / per-bank-used), compact rows (lime
-  `ddbar` = direct debit, due day as a minimal 2-digit number beside the name,
-  colour-coded method/category labels, checkbox on the right, 3-dot `actionSheet` menu
-  per row) and a "Save & Add Another" bulk-add flow that remembers the last
-  method/category/bank.
+  installment expiry). Month generation instantiates active templates into each month.
 - `loans[]` — with `appliedMonths[]`/`skippedMonths[]` for **idempotent** direct-debit
   auto-reduction, `originalTotal` for the payoff bar, `startMonth`.
 - `income[]` — freelance entries (`status` pending/paid, `paidDate` set on toggle).

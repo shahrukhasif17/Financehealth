@@ -1,5 +1,5 @@
 /* Finance Health — service worker. Cache-first app shell for offline use. */
-const CACHE = "finance-health-v4";
+const CACHE = "finance-health-v1";
 const ASSETS = [
   "./",
   "./index.html",
