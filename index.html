@@ -456,9 +456,45 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .strike { text-decoration: line-through; color: var(--text-2); }
 
 .footer-note { text-align: center; font-size: 12px; color: var(--text-3); padding: 8px 0 16px; }
+
+/* ============ Splash screen ============ */
+.splash {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; padding: 40px; text-align: center;
+  transition: opacity 500ms ease-out, visibility 500ms ease-out;
+}
+.splash.hide { opacity: 0; visibility: hidden; }
+.splash-logo {
+  width: 92px; height: 92px; border-radius: 26px; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: splashPop 600ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.splash-logo span { font-size: 40px; font-weight: 700; letter-spacing: -1.5px; color: var(--on-accent); }
+.splash-name { font-size: 26px; font-weight: 700; letter-spacing: -0.6px; animation: splashRise 700ms ease-out both; animation-delay: 120ms; }
+.splash-quote { font-size: 16px; color: var(--text-2); max-width: 260px; line-height: 1.45; animation: splashRise 700ms ease-out both; animation-delay: 240ms; }
+@keyframes splashPop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes splashRise { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ============ Loan / card detail bits ============ */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--separator); border-radius: 14px; overflow: hidden; margin-top: 12px; }
+.stat-cell { background: var(--card); padding: 11px 13px; }
+.stat-cell .sc-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-3); }
+.stat-cell .sc-val { font-size: 15px; font-weight: 600; margin-top: 3px; }
+.loan-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 8px; background: var(--fill); color: var(--text-2); vertical-align: 2px; margin-left: 8px; }
+.loan-tag.card { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+.link-badge { font-size: 11px; font-weight: 600; color: var(--accent-text); display: inline-flex; align-items: center; gap: 3px; }
+.link-badge svg { width: 12px; height: 12px; }
 </style>
 </head>
 <body>
+
+<div class="splash" id="splash">
+  <div class="splash-logo"><span>FH</span></div>
+  <div class="splash-name">Finance Health</div>
+  <div class="splash-quote">Your personal finance journey starts here.</div>
+</div>
 
 <header class="header">
   <div class="header-inner">
@@ -474,9 +510,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   <section class="view" id="view-home"></section>
   <section class="view" id="view-expenses"></section>
   <section class="view" id="view-loans"></section>
-  <section class="view" id="view-income"></section>
   <section class="view" id="view-invest"></section>
-  <section class="view" id="view-wishlist"></section>
+  <section class="view" id="view-transactions"></section>
 </main>
 
 <nav class="tabbar" id="tabbar">
@@ -492,17 +527,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.7 10v8M14.3 10v8M19 10v8"/><path d="M3 20.5h18"/></svg>
     <span>Loans</span>
   </button>
-  <button class="tab" data-tab="income">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.8 8.6a3 3 0 0 0-5 2.2c0 2.3-.6 3.6-1.3 4.7h6"/><path d="M8.5 12.9h4.5"/></svg>
-    <span>Income</span>
-  </button>
   <button class="tab" data-tab="invest">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20.5h18"/><path d="M4 16.5l5-5 3.5 3.5L20 8.5"/><path d="M15.5 8.5H20V13"/></svg>
     <span>Invest</span>
   </button>
-  <button class="tab" data-tab="wishlist">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3s-7.6-4.6-9.3-9A4.8 4.8 0 0 1 12 7.2a4.8 4.8 0 0 1 9.3 4c-1.7 4.5-9.3 9-9.3 9.1z"/></svg>
-    <span>Wishlist</span>
+  <button class="tab" data-tab="transactions">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-2.5-2.5M20 17H7l2.5 2.5"/></svg>
+    <span>Transactions</span>
   </button>
 </nav>
 
@@ -600,12 +631,11 @@ function defaultState() {
     version: 1,
     settings: { spendingPlan: 0, savingsTarget: 0, expectedFreelance: 0, salary: 0, banks: [...DEFAULT_BANKS], hideRemaining: false },
     months: {},      // "YYYY-MM" -> { expenses:[], savingsAdded:0, plan:{...planSnapshot()}, statements:{bank:{imported,tx:[{d,n,a}]}} }
-    recurring: [],   // templates: { id, name, amount, dueDay, startMonth, endMonth|null }
-    loans: [],       // { id, name, monthlyPayment, ddDay, endDate, originalTotal, remainingBalance, startMonth, appliedMonths:[], skippedMonths:[] }
+    recurring: [],   // templates: { id, name, amount, dueDay, startMonth, endMonth|null, method, category, bank }
+    loans: [],       // { id, name, type:'loan'|'card', apr, monthlyPayment, ddDay, endDate, originalTotal, remainingBalance, startMonth, appliedMonths:[], skippedMonths:[] }
     income: [],      // { id, title, amount, expectedDate, status, note, paidDate }
     savings: [],     // { id, name, value, note }
-    investments: [], // { id, name, value, note }
-    wishlist: []     // { id, name, price, type, monthlyAmount, months, purchased, purchasedDate }
+    investments: []  // { id, name, value, note }
   };
 }
 
@@ -627,6 +657,7 @@ function migrate() {
   if (!Array.isArray(s.banks) || !s.banks.length) s.banks = [...DEFAULT_BANKS];
   if (s.hideRemaining == null) s.hideRemaining = false;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
+  for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; }
   for (const k in state.months) {
     const m = state.months[k];
     if (m.plan && m.plan.salary == null) m.plan.salary = s.salary || 0;
@@ -759,6 +790,14 @@ function incomeReceivedFor(ym) {
   return state.income.filter(i => i.status === "paid" && i.paidDate && i.paidDate.slice(0, 7) === ym)
     .reduce((s, i) => s + i.amount, 0);
 }
+// Freelance income entries relevant to a month (paid in it, or expected in it)
+function incomeForMonth(ym) {
+  return state.income.filter(i =>
+    (i.paidDate && i.paidDate.slice(0, 7) === ym) ||
+    (i.status !== "paid" && i.expectedDate && i.expectedDate.slice(0, 7) === ym)
+  ).sort((a, b) => (a.status === "paid" ? 1 : 0) - (b.status === "paid" ? 1 : 0) ||
+                   (a.expectedDate || "9999").localeCompare(b.expectedDate || "9999"));
+}
 function investTotals() {
   const sav = state.savings.reduce((s, e) => s + e.value, 0);
   const inv = state.investments.reduce((s, e) => s + e.value, 0);
@@ -820,10 +859,11 @@ function scoreStatus(score) {
 let activeTab = "home";
 let homeYM = currentYM();
 let expYM = currentYM();
+let txYM = currentYM();
 let homeSeg = "actual";
 let whyOpen = false;
 
-const TAB_TITLES = { home: "Finance Health", expenses: "Expenses", loans: "Loans", income: "Income", invest: "Invest", wishlist: "Wishlist" };
+const TAB_TITLES = { home: "Finance Health", expenses: "Expenses", loans: "Loans & Cards", invest: "Invest", transactions: "Transactions" };
 
 function switchTab(tab) {
   activeTab = tab;
@@ -836,7 +876,7 @@ function switchTab(tab) {
 function render() {
   runEngine();
   ({ home: renderHome, expenses: renderExpenses, loans: renderLoans,
-     income: renderIncome, invest: renderInvest, wishlist: renderWishlist })[activeTab]();
+     invest: renderInvest, transactions: renderTransactions })[activeTab]();
 }
 
 const chevronLeft = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>';
@@ -1052,7 +1092,24 @@ function renderExpenses() {
   const list = m.expenses.filter(e => expenseMatches(e, expFilter))
     .sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32) || a.name.localeCompare(b.name));
   const fTot = list.reduce((s, e) => s + e.amount, 0);
-  const stmtBanks = Object.keys(m.statements || {}).sort();
+
+  // Income section: salary (from the month's plan snapshot) + freelance entries
+  const salary = m.plan.salary ?? (state.settings.salary || 0);
+  const incomeList = incomeForMonth(ym);
+  const flReceived = incomeList.filter(i => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+  const flPending = incomeList.filter(i => i.status !== "paid").reduce((s, i) => s + i.amount, 0);
+  const todayISO = today().toISOString().slice(0, 10);
+  const incomeRows = incomeList.map(i => {
+    const late = i.status !== "paid" && i.expectedDate && i.expectedDate < todayISO && ym >= currentYM();
+    return `<div class="xrow" ${readOnly ? "" : `onclick="openIncomeSheet('${i.id}')"`} style="cursor:pointer">
+      <span class="ddbar ${i.status === "paid" ? "dd" : ""}"></span>
+      <div class="x-main">
+        <div class="x-name">${esc(i.title)}${late ? '<span class="badge red">Late</span>' : ""}</div>
+        <div class="x-sub">${i.status === "paid" ? `RECEIVED ${fmtDate(i.paidDate)}` : i.expectedDate ? `EXPECTED ${fmtDate(i.expectedDate)}` : "FREELANCE"}</div>
+      </div>
+      <div class="x-amt num ${i.status === "paid" ? "pos" : ""}">${gbp.format(i.amount)}</div>
+    </div>`;
+  }).join("");
 
   const rows = list.map(e => {
     const overdue = isOverdue(e, ym);
@@ -1080,6 +1137,20 @@ function renderExpenses() {
   $("#view-expenses").innerHTML = `
     ${monthNav(ym, keys[0] < ym, ym < currentYM(), "expNav")}
     ${remainingCard(ym)}
+
+    <div class="section-header">Income<span class="sh-action num">${gbp.format(salary + flReceived)}</span></div>
+    <div class="card">
+      <div class="xrow" ${readOnly ? "" : `onclick="openSettings()"`} style="cursor:pointer">
+        <span class="ddbar dd"></span>
+        <div class="x-main"><div class="x-name">Salary</div><div class="x-sub">MONTHLY${readOnly ? "" : " · TAP TO EDIT"}</div></div>
+        <div class="x-amt num ${salary ? "pos" : "muted"}">${gbp.format(salary)}</div>
+      </div>
+      ${incomeRows}
+    </div>
+    ${!readOnly ? `<button class="btn tinted" onclick="openIncomeSheet()">＋ Add Freelance Income</button>
+      ${flPending ? `<div class="footer-note num">${gbp.format(flPending)} freelance still pending</div>` : ""}` : ""}
+
+    <div class="section-header">Expenses<span class="sh-action num">${gbp.format(paid)} / ${gbp.format(due)}</span></div>
     <div class="card" style="padding:12px 16px">
       <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">
         <span class="num">${gbp.format(paid)} of ${gbp.format(due)} paid</span>
@@ -1097,20 +1168,6 @@ function renderExpenses() {
           readOnly ? "Nothing was recorded for this month." : "Add your bills and outgoings for this month. Recurring ones roll over automatically.",
           readOnly ? null : "Add Expense", "openExpenseSheet()")}
     ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
-    ${stmtBanks.length ? `<div class="section-header">Bank statements</div>
-      <div class="card">${stmtBanks.map(b => {
-        const st = m.statements[b];
-        const out = st.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
-        const inn = st.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
-        return `<div class="row tappable" onclick="openStatementSheet('${ym}','${esc(b)}')">
-          <div class="row-main">
-            <div class="row-title">${esc(b)}</div>
-            <div class="row-sub num">Out ${gbp.format(out)} · In ${gbp.format(inn)} · ${st.tx.length} transactions</div>
-          </div>
-          <div class="chevron">${chevronSmall}</div>
-        </div>`;
-      }).join("")}</div>` : ""}
-    <div style="text-align:center;margin-top:4px"><button class="btn small tinted" onclick="importStatement()">Import Statement (CSV)</button></div>
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
 }
@@ -1293,8 +1350,8 @@ $("#stmtFile").addEventListener("change", async (ev) => {
   }
   runEngine();
   save();
-  expYM = months[months.length - 1];
-  render();
+  txYM = months[months.length - 1];
+  switchTab("transactions");
 });
 
 window.openStatementSheet = (ym, bank) => {
@@ -1343,37 +1400,75 @@ window.deleteStatement = async (ym, bank) => {
   }
 };
 
-/* ---------- Loans ---------- */
+/* ---------- Loans & cards ---------- */
 function loanMonthsLeft(loan) {
   if (!loan.endDate) return null;
   const diff = ymDiff(currentYM(), loan.endDate.slice(0, 7));
   return Math.max(0, diff);
 }
+// Amortised payoff projection from balance, monthly payment and APR.
+// Returns { months, interest, payoffYM, never } — never=true if the payment
+// doesn't even cover the monthly interest.
+function loanProjection(loan) {
+  const B = loan.remainingBalance, P = loan.monthlyPayment;
+  const r = (loan.apr || 0) / 100 / 12;
+  if (B <= 0) return { months: 0, interest: 0, payoffYM: null, never: false };
+  if (P <= 0) return { months: null, interest: null, payoffYM: null, never: true };
+  if (r === 0) {
+    const months = Math.ceil(B / P);
+    return { months, interest: 0, payoffYM: ymAdd(currentYM(), months), never: false };
+  }
+  if (P <= B * r) return { months: null, interest: null, payoffYM: null, never: true };
+  const months = Math.ceil(-Math.log(1 - (r * B) / P) / Math.log(1 + r));
+  const interest = Math.max(0, +(P * months - B).toFixed(2));
+  return { months, interest, payoffYM: ymAdd(currentYM(), months), never: false };
+}
+// True if a paid direct-debit expense this month has the same name as the loan/card.
+function loanPaidByDD(loan) {
+  const m = monthData(currentYM());
+  if (!m) return false;
+  const nm = loan.name.trim().toLowerCase();
+  return m.expenses.some(e => e.method === "dd" && e.paid && e.name.trim().toLowerCase() === nm);
+}
+const boltIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>';
 function renderLoans() {
   const totalMonthly = state.loans.reduce((s, l) => s + (l.remainingBalance > 0 ? l.monthlyPayment : 0), 0);
   const totalRemaining = state.loans.reduce((s, l) => s + l.remainingBalance, 0);
+  const totalInterest = state.loans.reduce((s, l) => { const p = loanProjection(l); return s + (p.interest || 0); }, 0);
 
   const cards = state.loans.map(l => {
     const orig = l.originalTotal || l.remainingBalance || 1;
     const paidOff = Math.max(0, orig - l.remainingBalance);
     const pct = Math.min(100, paidOff / orig * 100);
-    const left = loanMonthsLeft(l);
     const cur = currentYM();
     const skipped = (l.skippedMonths || []).includes(cur);
     const appliedThis = (l.appliedMonths || []).includes(cur);
+    const linked = loanPaidByDD(l);
+    const proj = loanProjection(l);
+    const isCard = l.type === "card";
+    const statusBit = skipped ? '<span class="warn">this month skipped</span>'
+      : (appliedThis || linked) ? '<span class="pos">paid this month</span>' : "";
     return `<div class="card tappable" onclick="openLoanSheet('${l.id}')" style="cursor:pointer">
       <div class="card-pad">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div style="font-size:17px;font-weight:600">${esc(l.name)}</div>
-            <div class="muted num" style="font-size:13px;margin-top:2px">${gbp.format(l.monthlyPayment)}/month · DD ${ordinal(l.ddDay)}</div>
+            <div style="font-size:17px;font-weight:600">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : ""}">${isCard ? "Card" : "Loan"}</span></div>
+            <div class="muted num" style="font-size:13px;margin-top:2px">${gbp.format(l.monthlyPayment)}/mo · DD ${ordinal(l.ddDay)}${l.apr ? ` · ${l.apr}% APR` : ""}</div>
           </div>
           <div class="chevron">${chevronSmall}</div>
         </div>
         <div style="font-size:30px;font-weight:700;letter-spacing:-0.8px;margin:10px 0 2px">${fmtRich(l.remainingBalance)}</div>
-        <div class="muted" style="font-size:13px;margin-bottom:10px">remaining${left !== null ? ` · ${left} month${left === 1 ? "" : "s"} left` : ""}${skipped ? ' · <span class="warn">this month skipped</span>' : appliedThis ? ' · <span class="pos">paid this month</span>' : ""}</div>
-        <div class="progress green"><div style="width:${pct}%"></div></div>
+        <div class="muted" style="font-size:13px">remaining${statusBit ? " · " + statusBit : ""}</div>
+        ${linked ? `<div class="link-badge" style="margin-top:6px">${boltIcon} Linked to a direct debit this month</div>` : ""}
+        <div class="progress green" style="margin-top:10px"><div style="width:${pct}%"></div></div>
         <div class="muted num" style="font-size:12px;margin-top:6px">${gbp.format(paidOff)} of ${gbp.format(orig)} paid off (${Math.round(pct)}%)</div>
+        <div class="stat-grid">
+          <div class="stat-cell"><div class="sc-label">Payoff date</div><div class="sc-val num">${proj.never ? "—" : proj.payoffYM ? monthShort(proj.payoffYM) : "Now"}</div></div>
+          <div class="stat-cell"><div class="sc-label">Months left</div><div class="sc-val num">${proj.never ? "—" : (proj.months ?? 0)}</div></div>
+          <div class="stat-cell"><div class="sc-label">Interest left${l.apr ? "" : " (set APR)"}</div><div class="sc-val num">${proj.never ? "—" : gbp.format(proj.interest || 0)}</div></div>
+          <div class="stat-cell"><div class="sc-label">Total to pay</div><div class="sc-val num">${proj.never ? "—" : gbp.format(l.remainingBalance + (proj.interest || 0))}</div></div>
+        </div>
+        ${proj.never && l.remainingBalance > 0 ? `<div class="footer-note" style="text-align:left;padding:8px 0 0"><span class="warn">Payment doesn't cover the interest — the balance won't reduce.</span></div>` : ""}
       </div>
     </div>`;
   }).join("");
@@ -1381,19 +1476,22 @@ function renderLoans() {
   const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.7 10v8M14.3 10v8M19 10v8"/><path d="M3 20.5h18"/></svg>';
 
   $("#view-loans").innerHTML = `
-    <div class="large-title">Loans</div>
+    <div class="large-title">Loans &amp; Cards</div>
     <div class="subtitle">Direct debits reduce balances automatically.</div>
     ${state.loans.length ? `
       <div class="card"><div class="pva-row">
-        <div class="pva-cat">Monthly outgoings<small>across ${state.loans.length} loan${state.loans.length > 1 ? "s" : ""}</small></div>
+        <div class="pva-cat">Monthly outgoings<small>across ${state.loans.length} account${state.loans.length > 1 ? "s" : ""}</small></div>
         <div class="pva-val num">${gbp.format(totalMonthly)}</div>
       </div><div class="pva-row">
         <div class="pva-cat">Total remaining</div>
         <div class="pva-val num">${gbp.format(totalRemaining)}</div>
+      </div><div class="pva-row">
+        <div class="pva-cat">Interest still to pay<small>at current payments &amp; APR</small></div>
+        <div class="pva-val num warn">${gbp.format(totalInterest)}</div>
       </div></div>
       ${cards}
-      <button class="btn primary add-fab" onclick="openLoanSheet()">＋ Add Loan</button>`
-      : emptyState(emptyIcon, "No loans", "Track loans and their direct debits. Balances drop automatically when each DD day passes.", "Add Loan", "openLoanSheet()")}
+      <button class="btn primary add-fab" onclick="openLoanSheet()">＋ Add Loan or Card</button>`
+      : emptyState(emptyIcon, "No loans or cards", "Track loans and credit cards. Add the APR to see your payoff date and how much interest is left.", "Add Loan or Card", "openLoanSheet()")}
   `;
 }
 
@@ -1405,41 +1503,58 @@ window.toggleIncomeStatus = id => {
   else { i.status = "pending"; i.paidDate = null; }
   save(); render();
 };
-function renderIncome() {
-  const pending = state.income.filter(i => i.status === "pending")
-    .sort((a, b) => (a.expectedDate || "9999").localeCompare(b.expectedDate || "9999"));
-  const paidList = state.income.filter(i => i.status === "paid")
-    .sort((a, b) => (b.paidDate || "").localeCompare(a.paidDate || ""));
-  const totalPending = pending.reduce((s, i) => s + i.amount, 0);
-  const receivedThisMonth = incomeReceivedFor(currentYM());
-  const todayISO = today().toISOString().slice(0, 10);
+/* ---------- Transactions ---------- */
+window.txNav = d => { txYM = ymAdd(txYM, d); render(); };
+function renderTransactions() {
+  const keys = sortedMonthKeys();
+  if (!keys.includes(txYM)) txYM = currentYM();
+  const ym = txYM;
+  const m = monthData(ym);
+  const banks = Object.keys(m.statements || {}).sort();
 
-  const row = i => {
-    const late = i.status === "pending" && i.expectedDate && i.expectedDate < todayISO;
-    return `<div class="row tappable" onclick="openIncomeSheet('${i.id}')">
-      <button class="check ${i.status === "paid" ? "on" : ""}" onclick="event.stopPropagation(); toggleIncomeStatus('${i.id}')" aria-label="Toggle paid">${tick}</button>
+  // combined totals + "where it went" across all imported banks this month
+  let allTx = [];
+  for (const b of banks) allTx = allTx.concat(m.statements[b].tx);
+  const out = allTx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
+  const inn = allTx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+  const agg = {};
+  for (const t of allTx) if (t.a < 0) { agg[t.n] = (agg[t.n] || 0) + (-t.a); }
+  const top = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  const bankCards = banks.map(b => {
+    const st = m.statements[b];
+    const bo = st.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
+    const bi = st.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+    return `<div class="row tappable" onclick="openStatementSheet('${ym}','${esc(b)}')">
       <div class="row-main">
-        <div class="row-title">${esc(i.title)}${late ? '<span class="badge red">Late</span>' : ""}${i.status === "paid" ? '<span class="badge green">Paid</span>' : ""}</div>
-        <div class="row-sub">${i.status === "paid" ? `Received ${fmtDate(i.paidDate)}` : i.expectedDate ? `Expected ${fmtDate(i.expectedDate)}` : "No date"}${i.note ? ` · ${esc(i.note)}` : ""}</div>
+        <div class="row-title">${esc(b)}</div>
+        <div class="row-sub num">Out ${gbp.format(bo)} · In ${gbp.format(bi)} · ${st.tx.length} transactions</div>
       </div>
-      <div class="row-value num" style="${late ? "color:var(--red)" : ""}">${gbp.format(i.amount)}</div>
+      <div class="chevron">${chevronSmall}</div>
     </div>`;
-  };
+  }).join("");
 
-  const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.8 8.6a3 3 0 0 0-5 2.2c0 2.3-.6 3.6-1.3 4.7h6"/><path d="M8.5 12.9h4.5"/></svg>';
+  const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-2.5-2.5M20 17H7l2.5 2.5"/></svg>';
 
-  $("#view-income").innerHTML = `
-    <div class="large-title">Income</div>
-    <div class="subtitle">Freelance invoices and expected payments.</div>
-    ${state.income.length ? `
+  $("#view-transactions").innerHTML = `
+    ${monthNav(ym, keys[0] < ym, ym < currentYM(), "txNav")}
+    ${banks.length ? `
       <div class="tiles">
-        <div class="tile"><h4>Pending</h4><div class="tile-big ${totalPending > 0 ? "warn" : ""}">${fmtRich(totalPending)}</div><div class="tile-sub">${pending.length} entr${pending.length === 1 ? "y" : "ies"}</div></div>
-        <div class="tile"><h4>Received this month</h4><div class="tile-big pos">${fmtRich(receivedThisMonth)}</div><div class="tile-sub">${monthShort(currentYM())}</div></div>
+        <div class="tile"><h4>Money out</h4><div class="tile-big neg">${fmtRich(out)}</div><div class="tile-sub">${banks.length} bank${banks.length > 1 ? "s" : ""}</div></div>
+        <div class="tile"><h4>Money in</h4><div class="tile-big pos">${fmtRich(inn)}</div><div class="tile-sub">${allTx.length} transactions</div></div>
       </div>
-      ${pending.length ? `<div class="section-header">Pending</div><div class="card">${pending.map(row).join("")}</div>` : ""}
-      ${paidList.length ? `<div class="section-header">Paid</div><div class="card">${paidList.map(row).join("")}</div>` : ""}
-      <button class="btn primary add-fab" onclick="openIncomeSheet()">＋ Add Income</button>`
-      : emptyState(emptyIcon, "No income entries", "Log freelance work and invoices. Late payers get flagged — but they never hurt your health score.", "Add Income", "openIncomeSheet()")}
+      <div class="section-header">Imported statements</div>
+      <div class="card">${bankCards}</div>
+      ${top.length ? `<div class="section-header">Where it went</div>
+      <div class="card">${top.map(([name, v]) => `<div class="xrow">
+        <div class="x-main"><div class="x-name">${esc(name)}</div></div>
+        <div class="x-amt num">${gbp.format(v)}</div>
+      </div>`).join("")}</div>` : ""}
+      <button class="btn primary add-fab" onclick="importStatement()">＋ Import Statement (CSV)</button>`
+      : emptyState(emptyIcon, "No transactions yet",
+          "At the end of the month, export a CSV from each banking app (Monzo, Barclays, Halifax, Tesco) and import it here to track where your money actually went.",
+          "Import Statement (CSV)", "importStatement()")}
+    <div class="footer-note" style="line-height:1.5;max-width:340px;margin:12px auto 0">Automatic sync with Monzo isn't possible in a private, offline app — importing a CSV keeps all your data on this device only.</div>
   `;
 }
 
@@ -1487,61 +1602,6 @@ function renderInvest() {
         : `<div class="card card-pad muted" style="font-size:15px">No investments yet.</div>`}
       <button class="btn tinted" onclick="openInvestSheet('investments')">＋ Add Investment</button>`
       : emptyState(emptyIcon, "Nothing tracked yet", "Add savings pots and investments to see your total grow. Adding to savings counts toward your monthly target.", "Add Savings Pot", "openInvestSheet('savings')")}
-  `;
-}
-
-/* ---------- Wishlist ---------- */
-function renderWishlist() {
-  const active = state.wishlist.filter(w => !w.purchased);
-  const bought = state.wishlist.filter(w => w.purchased).sort((a, b) => (b.purchasedDate || "").localeCompare(a.purchasedDate || ""));
-  const m = monthData(currentYM());
-  const plan = m.plan.spendingPlan || state.settings.spendingPlan || 0;
-  const spent = expenseTotals(currentYM()).paid;
-  const remaining = Math.max(0, plan - spent);
-
-  const itemRow = w => {
-    let impact;
-    if (w.type === "installments") {
-      impact = `<span class="warn">Adds ${gbp.format(w.monthlyAmount)}/month for ${w.months} months</span>`;
-    } else if (plan > 0) {
-      const pctUse = remaining > 0 ? (w.price / remaining * 100) : Infinity;
-      const cls = pctUse > 100 ? "neg" : pctUse > 50 ? "warn" : "pos";
-      impact = isFinite(pctUse)
-        ? `<span class="${cls}">Would use ${Math.round(pctUse)}% of this month's remaining budget</span>`
-        : `<span class="neg">No budget left this month</span>`;
-    } else {
-      impact = `<span class="muted">Set a spending plan in Settings to see impact</span>`;
-    }
-    return `<div class="row tappable" onclick="openWishlistSheet('${w.id}')">
-      <div class="row-main">
-        <div class="row-title">${esc(w.name)}</div>
-        <div class="row-sub">${w.type === "installments" ? `Installments · ${w.months} × ${gbp.format(w.monthlyAmount)}` : "Buy outright"}</div>
-        <div class="impact num">${impact}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-        <div class="row-value num">${gbp.format(w.price)}</div>
-        <button class="btn small tinted" onclick="event.stopPropagation(); buyItem('${w.id}')">Buy</button>
-      </div>
-    </div>`;
-  };
-  const boughtRow = w => `<div class="row tappable" onclick="openWishlistSheet('${w.id}')">
-    <div class="row-main">
-      <div class="row-title strike">${esc(w.name)}</div>
-      <div class="row-sub">Purchased ${fmtDate(w.purchasedDate)}${w.type === "installments" ? ` · ${w.months} × ${gbp.format(w.monthlyAmount)}` : ""}</div>
-    </div>
-    <div class="row-value muted num">${gbp.format(w.price)}</div>
-  </div>`;
-
-  const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3s-7.6-4.6-9.3-9A4.8 4.8 0 0 1 12 7.2a4.8 4.8 0 0 1 9.3 4c-1.7 4.5-9.3 9-9.3 9.1z"/></svg>';
-
-  $("#view-wishlist").innerHTML = `
-    <div class="large-title">Wishlist</div>
-    <div class="subtitle">See the impact before you buy.</div>
-    ${state.wishlist.length ? `
-      ${active.length ? `<div class="card">${active.map(itemRow).join("")}</div>` : `<div class="card card-pad muted" style="font-size:15px">Nothing on the wishlist right now.</div>`}
-      <button class="btn primary add-fab" onclick="openWishlistSheet()">＋ Add to Wishlist</button>
-      ${bought.length ? `<div class="section-header">Purchased</div><div class="card">${bought.map(boughtRow).join("")}</div>` : ""}`
-      : emptyState(emptyIcon, "Wishlist is empty", "Add things you want to buy. Each one shows what it would do to this month's budget before you commit.", "Add to Wishlist", "openWishlistSheet()")}
   `;
 }
 
@@ -1653,12 +1713,15 @@ function saveExpenseForm(e) {
   let category = val("fx-cat-sel") === "__custom" ? val("fx-cat-custom") : val("fx-cat-sel");
   if (!category) category = "Regular";
   const bank = val("fx-bank") || null;
+  // Optional expiry for recurring payments (e.g. "only 3 payments left")
+  const endVal = val("fx-end");
+  const endMonth = (rec && endVal) ? endVal.slice(0, 7) : null;
   expDefaults = { ...expDefaults, method, category, [method === "dd" ? "bankDD" : "bankMan"]: bank || "" };
   if (e) {
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
     e.method = method; e.category = category; e.bank = bank;
     if (rec && !e.recurring) { // became recurring
-      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category, bank };
+      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth, method, category, bank };
       state.recurring.push(t);
       e.recurring = true; e.recurringId = t.id;
     } else if (!rec && e.recurring) { // stopped recurring
@@ -1666,12 +1729,12 @@ function saveExpenseForm(e) {
       e.recurring = false; e.recurringId = null;
     } else if (rec && e.recurringId) { // keep template in sync for future months
       const t = state.recurring.find(t => t.id === e.recurringId);
-      if (t) { t.name = name; t.amount = amount; t.dueDay = dueDay; t.method = method; t.category = category; t.bank = bank; }
+      if (t) { t.name = name; t.amount = amount; t.dueDay = dueDay; t.method = method; t.category = category; t.bank = bank; t.endMonth = endMonth; }
     }
   } else {
     const ex = { id: uid(), name, amount, dueDay, paid: false, recurring: rec, recurringId: null, method, category, bank };
     if (rec) {
-      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth: null, method, category, bank };
+      const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth, method, category, bank };
       state.recurring.push(t);
       ex.recurringId = t.id;
     }
@@ -1690,6 +1753,8 @@ window.openExpenseSheet = (id) => {
   const bankList = [...new Set([...(state.settings.banks || []), ...(bank ? [bank] : [])])];
   const stdCats = ["Regular", "Extra"];
   const isCustomCat = !stdCats.includes(category);
+  const tmpl = e && e.recurringId ? state.recurring.find(t => t.id === e.recurringId) : null;
+  const endVal = tmpl && tmpl.endMonth ? tmpl.endMonth + "-01" : "";
   openSheet(e ? "Edit Expense" : "New Expense", `
     <div class="segmented form-seg" id="fx-method">
       <button type="button" class="${method === "dd" ? "active" : ""}" data-v="dd">Direct Debit</button>
@@ -1707,15 +1772,19 @@ window.openExpenseSheet = (id) => {
       <div id="fx-cat-custom-row" class="hidden">${fText("fx-cat-custom", "Custom name", "", "e.g. Subscriptions")}</div>
       ${fSelect("fx-bank", "Bank", [{ value: "", label: "None" }, ...bankList.map(b => ({ value: b, label: b }))], bank)}
       ${fSwitch("fx-rec", "Recurring monthly", e?.recurring)}
+      <div id="fx-end-row" class="${e?.recurring ? "" : "hidden"}">${fDate("fx-end", "Ends on (last payment)", endVal)}</div>
       ${e ? fSwitch("fx-paid", "Paid", e.paid) : ""}
     </div>
-    <div class="form-hint">Recurring expenses appear automatically in every new month, unticked. One-offs stay in this month only.</div>
+    <div class="form-hint">Recurring expenses appear automatically in every new month, unticked. Set an "Ends on" date for finite payments (e.g. an installment with only a few left) — otherwise it repeats indefinitely.</div>
     ${e ? "" : `<button class="btn tinted" style="margin-bottom:8px" onclick="saveExpenseAndNext()">Save &amp; Add Another</button>`}
     ${e ? deleteBtn(`deleteExpense('${e.id}')`) : ""}
   `, () => saveExpenseForm(e));
   const catSel = $("#fx-cat-sel");
   catSel.addEventListener("change", () => {
     $("#fx-cat-custom-row").classList.toggle("hidden", catSel.value !== "__custom");
+  });
+  $("#fx-rec").addEventListener("change", ev => {
+    $("#fx-end-row").classList.toggle("hidden", !ev.target.checked);
   });
   $("#fx-method").addEventListener("click", ev => {
     const b = ev.target.closest("button"); if (!b) return;
@@ -1746,31 +1815,39 @@ window.openLoanSheet = (id) => {
   const l = id ? state.loans.find(x => x.id === id) : null;
   const cur = currentYM();
   const skipped = l ? (l.skippedMonths || []).includes(cur) : false;
-  openSheet(l ? "Edit Loan" : "New Loan", `
+  const type = l ? (l.type || "loan") : "loan";
+  openSheet(l ? "Edit" : "New Loan or Card", `
+    <div class="segmented form-seg" id="fl-type">
+      <button type="button" class="${type === "loan" ? "active" : ""}" data-v="loan">Loan</button>
+      <button type="button" class="${type === "card" ? "active" : ""}" data-v="card">Credit card</button>
+    </div>
     <div class="form-group">
       ${fText("fl-name", "Name", l?.name || "", "e.g. Car finance")}
+      ${fAmount("fl-balance", "Remaining balance", l?.remainingBalance ?? "")}
       ${fAmount("fl-payment", "Monthly payment", l?.monthlyPayment ?? "")}
       ${fDay("fl-dd", "Direct debit day", l?.ddDay ?? "")}
-      ${fDate("fl-end", "End date", l?.endDate || "")}
-      ${fAmount("fl-balance", "Remaining balance", l?.remainingBalance ?? "")}
+      <div class="form-row"><label for="fl-apr">APR %</label><input type="number" id="fl-apr" inputmode="decimal" step="0.1" min="0" value="${l?.apr || ""}" placeholder="e.g. 24.9"></div>
+      ${fDate("fl-end", "End date (optional)", l?.endDate || "")}
     </div>
+    <div class="form-hint">Tip: if a direct-debit expense has the <b>same name</b> as this, it shows here as paid automatically each month. Add the APR to see the payoff date and interest.</div>
     ${l ? `<div class="form-group">${fSwitch("fl-skip", `Skip ${monthShort(cur)} payment`, skipped)}</div>
-    <div class="form-hint">Skipping stops (or reverses) this month's automatic balance reduction. Edit the balance above any time to correct for overpayments.</div>` :
+    <div class="form-hint">Skipping stops (or reverses) this month's automatic balance reduction. Edit the balance above any time to correct for over/underpayments.</div>` :
     `<div class="form-hint">The balance drops by the monthly payment automatically each time the direct debit day passes.</div>`}
     ${l ? deleteBtn(`deleteLoan('${l.id}')`) : ""}
   `, () => {
     const name = val("fl-name"), payment = num("fl-payment"), balance = num("fl-balance");
-    const ddDay = dayVal("fl-dd"), endDate = val("fl-end") || null;
-    if (!name) return invalid("fl-name", "Give the loan a name.");
+    const ddDay = dayVal("fl-dd"), endDate = val("fl-end") || null, apr = num("fl-apr");
+    const ltype = $("#fl-type .active").dataset.v;
+    if (!name) return invalid("fl-name", "Give it a name.");
     if (payment <= 0) return invalid("fl-payment", "Enter the monthly payment.");
     if (!ddDay) return invalid("fl-dd", "Enter the direct debit day (1–31).");
     if (l) {
       l.name = name; l.monthlyPayment = payment; l.ddDay = ddDay; l.endDate = endDate;
+      l.type = ltype; l.apr = apr;
       l.remainingBalance = balance; // manual override always wins
       const wasSkipped = (l.skippedMonths || []).includes(cur);
       const wantSkip = checked("fl-skip");
       if (wantSkip && !wasSkipped) {
-        // If this month already auto-applied, reverse it.
         if ((l.appliedMonths || []).includes(cur)) {
           l.appliedMonths = l.appliedMonths.filter(m => m !== cur);
           l.remainingBalance = +(l.remainingBalance + l.monthlyPayment).toFixed(2);
@@ -1778,19 +1855,21 @@ window.openLoanSheet = (id) => {
         l.skippedMonths = [...(l.skippedMonths || []), cur];
       } else if (!wantSkip && wasSkipped) {
         l.skippedMonths = l.skippedMonths.filter(m => m !== cur);
-        // engine will re-apply on next run if the DD day has passed
       }
     } else {
       const loan = {
-        id: uid(), name, monthlyPayment: payment, ddDay, endDate,
+        id: uid(), name, type: ltype, apr, monthlyPayment: payment, ddDay, endDate,
         originalTotal: balance, remainingBalance: balance,
         startMonth: cur, appliedMonths: [], skippedMonths: []
       };
-      // The entered balance already reflects any payment taken earlier this month.
       if (today().getDate() >= ddDay) loan.appliedMonths.push(cur);
       state.loans.push(loan);
     }
     save(); render();
+  });
+  $("#fl-type").addEventListener("click", ev => {
+    const b = ev.target.closest("button"); if (!b) return;
+    $$("#fl-type button").forEach(x => x.classList.toggle("active", x === b));
   });
 };
 window.deleteLoan = async (id) => {
@@ -1806,15 +1885,16 @@ window.deleteLoan = async (id) => {
 /* ---------- Income sheet ---------- */
 window.openIncomeSheet = (id) => {
   const i = id ? state.income.find(x => x.id === id) : null;
-  openSheet(i ? "Edit Income" : "New Income", `
+  const defDate = (typeof expYM === "string" ? expYM : currentYM()) + "-15";
+  openSheet(i ? "Edit Income" : "Freelance Income", `
     <div class="form-group">
       ${fText("fi-title", "Client / project", i?.title || "", "e.g. Acme redesign")}
       ${fAmount("fi-amount", "Amount", i?.amount ?? "")}
-      ${fDate("fi-date", "Expected date", i?.expectedDate || "")}
-      ${fSwitch("fi-paid", "Paid", i?.status === "paid")}
+      ${fDate("fi-date", "Expected date", i?.expectedDate || defDate)}
+      ${fSwitch("fi-paid", "Received", i?.status === "paid")}
       ${fNote("fi-note", "Note", i?.note || "")}
     </div>
-    <div class="form-hint">Late payments get flagged, but they never count against your health score — that's on the client, not you.</div>
+    <div class="form-hint">Your salary is set once in Settings. Add freelance/one-off income here. Late payments get flagged, but never count against your health score — that's on the client, not you.</div>
     ${i ? deleteBtn(`deleteIncome('${i.id}')`) : ""}
   `, () => {
     const title = val("fi-title"), amount = num("fi-amount");
@@ -1895,83 +1975,6 @@ window.openAddToSavings = () => {
     m.savingsAdded = +((m.savingsAdded || 0) + amount).toFixed(2);
     save(); render();
   }, { saveLabel: "Add" });
-};
-
-/* ---------- Wishlist sheet ---------- */
-window.openWishlistSheet = (id) => {
-  const w = id ? state.wishlist.find(x => x.id === id) : null;
-  const type = w?.type || "outright";
-  openSheet(w ? "Edit Wishlist Item" : "New Wishlist Item", `
-    <div class="segmented form-seg" id="fw-seg">
-      <button type="button" class="${type === "outright" ? "active" : ""}" data-v="outright">Outright</button>
-      <button type="button" class="${type === "installments" ? "active" : ""}" data-v="installments">Installments</button>
-    </div>
-    <div class="form-group">
-      ${fText("fw-name", "Name", w?.name || "", "e.g. New laptop")}
-      ${fAmount("fw-price", "Price", w?.price ?? "")}
-    </div>
-    <div class="form-group" id="fw-inst" style="${type === "installments" ? "" : "display:none"}">
-      ${fAmount("fw-monthly", "Monthly amount", w?.monthlyAmount ?? "")}
-      ${fDay("fw-months", "Number of months", w?.months ?? "").replace("1–31", "e.g. 12").replace('max="31"', 'max="120"')}
-    </div>
-    <div class="form-hint" id="fw-hint">${type === "installments" ? "Buying creates a recurring expense that expires automatically after the last installment." : "Buying adds a one-off expense to this month, ticked as paid."}</div>
-    ${w && !w.purchased ? deleteBtn(`deleteWishlist('${w.id}')`) : ""}
-    ${w && w.purchased ? deleteBtn(`deleteWishlist('${w.id}')`).replace(">Delete<", ">Remove from history<") : ""}
-  `, () => {
-    const name = val("fw-name"), price = num("fw-price");
-    const t = $("#fw-seg .active").dataset.v;
-    if (!name) return invalid("fw-name", "Give the item a name.");
-    if (price <= 0) return invalid("fw-price", "Enter the price.");
-    let monthlyAmount = null, months = null;
-    if (t === "installments") {
-      monthlyAmount = num("fw-monthly");
-      months = parseInt($("#fw-months").value, 10) || 0;
-      if (monthlyAmount <= 0 || months <= 0) return invalid("fw-monthly", "Enter the monthly amount and number of months.");
-    }
-    if (w) Object.assign(w, { name, price, type: t, monthlyAmount, months });
-    else state.wishlist.push({ id: uid(), name, price, type: t, monthlyAmount, months, purchased: false, purchasedDate: null });
-    save(); render();
-  });
-  $("#fw-seg").addEventListener("click", ev => {
-    const b = ev.target.closest("button"); if (!b) return;
-    $$("#fw-seg button").forEach(x => x.classList.toggle("active", x === b));
-    $("#fw-inst").style.display = b.dataset.v === "installments" ? "" : "none";
-    $("#fw-hint").textContent = b.dataset.v === "installments"
-      ? "Buying creates a recurring expense that expires automatically after the last installment."
-      : "Buying adds a one-off expense to this month, ticked as paid.";
-  });
-};
-window.deleteWishlist = async (id) => {
-  const w = state.wishlist.find(x => x.id === id);
-  if (!w) return;
-  closeSheet();
-  if (await confirmDialog("Remove item?", `Remove “${w.name}” from the wishlist?${w.purchased ? " Its expense entries are kept." : ""}`, "Remove")) {
-    state.wishlist = state.wishlist.filter(x => x.id !== id);
-    save(); render();
-  }
-};
-window.buyItem = async (id) => {
-  const w = state.wishlist.find(x => x.id === id);
-  if (!w || w.purchased) return;
-  const cur = currentYM();
-  const msg = w.type === "installments"
-    ? `This adds a recurring expense of ${fmtPlain(w.monthlyAmount)}/month for ${w.months} months, starting now.`
-    : `This adds ${fmtPlain(w.price)} as a paid one-off expense in ${monthName(cur)}.`;
-  if (!await confirmDialog(`Buy ${w.name}?`, msg, "Buy", "bold")) return;
-  const m = monthData(cur);
-  if (w.type === "installments") {
-    const t = {
-      id: uid(), name: w.name, amount: w.monthlyAmount, dueDay: today().getDate(),
-      startMonth: cur, endMonth: ymAdd(cur, w.months - 1), method: "dd", category: "Extra"
-    };
-    state.recurring.push(t);
-    m.expenses.push({ id: uid(), name: w.name, amount: w.monthlyAmount, dueDay: t.dueDay, paid: false, recurring: true, recurringId: t.id, method: "dd", category: "Extra" });
-  } else {
-    m.expenses.push({ id: uid(), name: w.name, amount: w.price, dueDay: today().getDate(), paid: true, recurring: false, recurringId: null, method: "manual", category: "Extra" });
-  }
-  w.purchased = true;
-  w.purchasedDate = today().toISOString().slice(0, 10);
-  save(); render();
 };
 
 /* ---------- Settings ---------- */
@@ -2060,12 +2063,21 @@ $("#tabbar").addEventListener("click", ev => {
 });
 document.addEventListener("visibilitychange", () => {
   // re-run rollover logic when returning to the app (new day / new month)
-  if (!document.hidden) { homeYM = currentYM(); expYM = currentYM(); render(); }
+  if (!document.hidden) { homeYM = currentYM(); expYM = currentYM(); txYM = currentYM(); render(); }
 });
 
 load();
 runEngine();
 switchTab("home");
+
+// Splash: show briefly on cold start, then fade out
+(function () {
+  const splash = $("#splash");
+  if (!splash) return;
+  const dismiss = () => splash.classList.add("hide");
+  setTimeout(dismiss, 1600);
+  splash.addEventListener("click", dismiss);
+})();
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

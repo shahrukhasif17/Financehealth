@@ -61,8 +61,19 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
   colour-coded method/category labels, checkbox on the right, 3-dot `actionSheet` menu
   per row) and a "Save & Add Another" bulk-add flow that remembers the last
   method/category/bank.
-- `loans[]` — with `appliedMonths[]`/`skippedMonths[]` for **idempotent** direct-debit
-  auto-reduction, `originalTotal` for the payoff bar, `startMonth`.
+- `recurring[]` templates carry an optional `endMonth` — set via the expense form's
+  "Ends on" date (shown when Recurring is on) so finite payments (installments with a
+  few payments left) stop automatically.
+- `loans[]` — `type` (`"loan"`|`"card"` credit card), `apr`, `endDate`, plus
+  `appliedMonths[]`/`skippedMonths[]` for **idempotent** direct-debit auto-reduction,
+  `originalTotal` for the payoff bar, `startMonth`. `loanProjection()` amortises
+  balance/payment/APR into months-left, interest and payoff date (flags `never` when the
+  payment doesn't cover monthly interest). `loanPaidByDD()` shows a "linked to a direct
+  debit" badge when a paid DD expense has the **same name** as the loan/card.
+- The Transactions tab holds CSV bank-statement import (moved out of Expenses):
+  combined out/in totals, per-bank cards, and a combined "Where it went". Automatic bank
+  (e.g. Monzo) sync is intentionally not implemented — impossible in a serverless,
+  offline, public static app (OAuth secrets, AISP regulation); CSV import is the path.
 - `income[]` — freelance entries (`status` pending/paid, `paidDate` set on toggle).
 - `savings[]`, `investments[]` — simple name/value/note entries.
 - `wishlist[]` — items with `type` outright/installments; buying creates expenses.
@@ -91,9 +102,12 @@ installment expiry without waiting.
 
 ## UI conventions
 
-- 6 tabs (Home, Expenses, Loans, Income, Invest, Wishlist) rendered by `render*()`
+- 5 tabs (Home, Expenses, Loans & Cards, Invest, Transactions) rendered by `render*()`
   functions that rewrite each `<section class="view">`'s innerHTML; state lives in JS,
-  re-render after every mutation.
+  re-render after every mutation. A splash overlay (`#splash`, logo + quote) shows on
+  cold start and fades after ~1.6s. There is no Income tab or Wishlist tab (removed):
+  freelance income is entered inside the Expenses tab's Income section (`income[]` still
+  the model, surfaced via `incomeForMonth(ym)`); salary is set once in Settings.
 - Add/edit uses the bottom-sheet (`openSheet`); deletes confirm via `confirmDialog`
   (iOS-style alert). Settings opens from the header gear.
 - Past months are read-only in Expenses; Home can browse historical months' scores and
