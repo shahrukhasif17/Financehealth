@@ -245,12 +245,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
-  flex-shrink: 0; padding: 9px 15px; border-radius: 999px; background: var(--fill);
-  color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap;
+  flex-shrink: 0; padding: 8px 13px; border-radius: 999px; background: var(--fill);
+  color: var(--text-2); font-size: 12px; font-weight: 600; white-space: nowrap;
   transition: background 150ms ease-out, color 150ms ease-out;
 }
 .chip.active { background: var(--chip-active-bg); color: var(--chip-active-text); }
-.chip .cnt { opacity: 0.55; font-weight: 500; margin-left: 3px; }
 
 /* Plan vs Actual */
 .pva-row { display: flex; align-items: baseline; gap: 10px; padding: 11px 16px; position: relative; }
@@ -295,18 +294,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .x-main { flex: 1; min-width: 0; }
 .x-name { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .x-due { font-size: 11px; font-weight: 600; color: var(--text-3); margin-left: 6px; }
-.x-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mm-dd { color: var(--accent-text); font-weight: 600; }
-.mm-man { color: var(--manual); font-weight: 600; }
-.cat-reg { color: var(--text-2); }
-.cat-extra { color: var(--amber); font-weight: 600; }
-.cat-custom { color: var(--violet); font-weight: 600; }
+.x-sub {
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mm-dd { color: var(--accent-text); opacity: 0.8; }
+.mm-man { color: var(--manual); opacity: 0.85; }
+.cat-extra { color: var(--amber); opacity: 0.9; }
+.cat-custom { color: var(--violet); opacity: 0.9; }
 
 /* Remaining-this-month card */
 .remain-card { position: relative; padding: 14px 16px; }
-.remain-card h4 { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
-.remain-big { font-size: 32px; font-weight: 700; letter-spacing: -0.8px; }
-.remain-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
+.remain-card h4 { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+.remain-big { font-size: 30px; font-weight: 700; letter-spacing: -0.8px; }
+.remain-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; }
 .eye-btn {
   position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 17px;
   display: flex; align-items: center; justify-content: center; color: var(--text-2);
@@ -874,16 +875,10 @@ function remainingCard(ym) {
   const saved = m.savingsAdded || 0;
   const remaining = salary + freelance - spent - loans - saved;
   const hidden = state.settings.hideRemaining;
-  const parts = [`salary ${gbp.format(salary)}`];
-  if (freelance) parts.push(`+ freelance ${gbp.format(freelance)}`);
-  parts.push(`− spent ${gbp.format(spent)}`);
-  if (loans) parts.push(`− loans ${gbp.format(loans)}`);
-  if (saved) parts.push(`− saved ${gbp.format(saved)}`);
   return `<div class="card remain-card">
     <h4>Remaining this month</h4>
     <div class="remain-big ${remaining < 0 ? "neg" : ""}">${hidden ? '<span class="muted">••••</span>' : fmtRich(remaining)}</div>
-    <div class="remain-sub num">${hidden ? "Hidden — tap the eye to show" :
-      (salary || freelance ? esc(parts.join(" ")) : "Set your salary in Settings to track what's left each month.")}</div>
+    ${!hidden && !salary && !freelance ? '<div class="remain-sub">Set your salary in Settings</div>' : ""}
     <button class="eye-btn" onclick="toggleRemaining()" aria-label="Show or hide remaining">${hidden ? eyeOff : eyeOpen}</button>
   </div>`;
 }
@@ -1000,7 +995,6 @@ function renderHome() {
         <div class="tile-sub num">${gbp.format(m.savingsAdded || 0)} saved this month</div>
       </div>
     </div>
-    <div class="footer-note">Data stays on this device · ${monthName(homeYM)}</div>
   `;
 
   // animate the ring after paint
@@ -1051,10 +1045,9 @@ function renderExpenses() {
     ...banksUsed.map(b => ({ key: "bank:" + b, label: b }))
   ];
   if (!chipDefs.some(c => c.key === expFilter)) expFilter = "all";
-  const chips = chipDefs.map(c => {
-    const n = m.expenses.filter(e => expenseMatches(e, c.key)).length;
-    return `<button class="chip ${expFilter === c.key ? "active" : ""}" onclick="setExpFilter('${esc(c.key)}')">${esc(c.label)}<span class="cnt num">${n}</span></button>`;
-  }).join("");
+  const chips = chipDefs.map(c =>
+    `<button class="chip ${expFilter === c.key ? "active" : ""}" onclick="setExpFilter('${esc(c.key)}')">${esc(c.label)}</button>`
+  ).join("");
 
   const list = m.expenses.filter(e => expenseMatches(e, expFilter))
     .sort((a, b) => (a.dueDay || 32) - (b.dueDay || 32) || a.name.localeCompare(b.name));
@@ -1064,11 +1057,10 @@ function renderExpenses() {
   const rows = list.map(e => {
     const overdue = isOverdue(e, ym);
     const cat = e.category || "Regular";
-    const catCls = cat === "Regular" ? "cat-reg" : cat === "Extra" ? "cat-extra" : "cat-custom";
     const bits = [
       `<span class="${e.method === "dd" ? "mm-dd" : "mm-man"}">${e.method === "dd" ? "Direct debit" : "Manual"}</span>`,
-      `<span class="${catCls}">${esc(cat)}</span>`,
-      e.bank ? `<span class="muted">${esc(e.bank)}</span>` : null
+      cat === "Regular" ? null : `<span class="${cat === "Extra" ? "cat-extra" : "cat-custom"}">${esc(cat)}</span>`,
+      e.bank ? `<span>${esc(e.bank)}</span>` : null
     ].filter(Boolean).join(" · ");
     return `<div class="xrow">
       <span class="ddbar ${e.method === "dd" ? "dd" : ""}"></span>
@@ -1088,12 +1080,12 @@ function renderExpenses() {
   $("#view-expenses").innerHTML = `
     ${monthNav(ym, keys[0] < ym, ym < currentYM(), "expNav")}
     ${remainingCard(ym)}
-    <div class="card card-pad">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-        <div style="font-size:15px;font-weight:600" class="num">${gbp.format(paid)} of ${gbp.format(due)} paid</div>
-        <div class="muted num" style="font-size:13px">${Math.round(pct)}%</div>
+    <div class="card" style="padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">
+        <span class="num">${gbp.format(paid)} of ${gbp.format(due)} paid</span>
+        <span class="num">${Math.round(pct)}%</span>
       </div>
-      <div class="progress ${paid >= due && due > 0 ? "green" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress ${paid >= due && due > 0 ? "green" : ""}" style="height:5px"><div style="width:${pct}%"></div></div>
     </div>
     ${m.expenses.length ? `<div class="chips">${chips}</div>` : ""}
     ${m.expenses.length
@@ -1105,8 +1097,8 @@ function renderExpenses() {
           readOnly ? "Nothing was recorded for this month." : "Add your bills and outgoings for this month. Recurring ones roll over automatically.",
           readOnly ? null : "Add Expense", "openExpenseSheet()")}
     ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
-    <div class="section-header">Bank statements</div>
-    ${stmtBanks.length ? `<div class="card">${stmtBanks.map(b => {
+    ${stmtBanks.length ? `<div class="section-header">Bank statements</div>
+      <div class="card">${stmtBanks.map(b => {
         const st = m.statements[b];
         const out = st.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0);
         const inn = st.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
@@ -1117,9 +1109,8 @@ function renderExpenses() {
           </div>
           <div class="chevron">${chevronSmall}</div>
         </div>`;
-      }).join("")}</div>`
-      : `<div class="card card-pad muted" style="font-size:13px;line-height:1.5">At the end of the month, export a CSV from each banking app and import it here to see where the money actually went.</div>`}
-    <button class="btn tinted" onclick="importStatement()">Import Statement (CSV)</button>
+      }).join("")}</div>` : ""}
+    <div style="text-align:center;margin-top:4px"><button class="btn small tinted" onclick="importStatement()">Import Statement (CSV)</button></div>
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
 }
