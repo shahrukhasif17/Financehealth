@@ -320,6 +320,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .fltrow .fl-check svg { width: 18px; height: 18px; }
 .cat-extra { color: var(--amber); opacity: 0.9; }
 .cat-custom { color: var(--violet); opacity: 0.9; }
+.note-done { text-decoration: line-through; color: var(--text-3); }
 
 /* Remaining-this-month card */
 .remain-card { position: relative; padding: 14px 16px; }
@@ -505,6 +506,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stat-cell .sc-val { font-size: 15px; font-weight: 600; margin-top: 3px; }
 .loan-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 8px; background: var(--fill); color: var(--text-2); vertical-align: 2px; margin-left: 8px; }
 .loan-tag.card { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+.loan-tag.loan { background: color-mix(in srgb, var(--manual) 22%, transparent); color: var(--manual); }
 .link-badge { font-size: 11px; font-weight: 600; color: var(--accent-text); display: inline-flex; align-items: center; gap: 3px; }
 .link-badge svg { width: 12px; height: 12px; }
 </style>
@@ -656,7 +658,8 @@ function defaultState() {
     loans: [],       // { id, name, type:'loan'|'card', apr, monthlyPayment, ddDay, endDate, originalTotal, remainingBalance, startMonth, appliedMonths:[], skippedMonths:[] }
     income: [],      // { id, title, amount, expectedDate, status, note, paidDate }
     savings: [],     // { id, name, value, note }
-    investments: []  // { id, name, value, note }
+    investments: [], // { id, name, value, note }
+    notes: []        // finance to-dos: { id, text, due|null, done }
   };
 }
 
@@ -679,6 +682,7 @@ function migrate() {
   if (s.hideRemaining == null) s.hideRemaining = false;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
   for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; if (l.extraTotal == null) l.extraTotal = 0; }
+  if (!Array.isArray(state.notes)) state.notes = [];
   for (const k in state.months) {
     const m = state.months[k];
     if (m.plan && m.plan.salary == null) m.plan.salary = s.salary || 0;
@@ -881,8 +885,6 @@ let activeTab = "home";
 let homeYM = currentYM();
 let expYM = currentYM();
 let txYM = currentYM();
-let homeSeg = "actual";
-let whyOpen = false;
 
 const TAB_TITLES = { home: "Finance Health", expenses: "Expenses", loans: "Loans & Cards", invest: "Invest", transactions: "Transactions" };
 
@@ -953,118 +955,112 @@ function diffSpan(diff, goodWhenPositive = true) {
 }
 
 /* ---------- Home ---------- */
-window.homeNav = d => { homeYM = ymAdd(homeYM, d); whyOpen = false; render(); };
-window.setHomeSeg = s => { homeSeg = s; render(); };
-window.toggleWhy = () => { whyOpen = !whyOpen; render(); };
+let homeUpcomingAll = false;
+window.homeNav = d => { homeYM = ymAdd(homeYM, d); homeUpcomingAll = false; render(); };
+window.toggleUpcoming = () => { homeUpcomingAll = !homeUpcomingAll; render(); };
+
+// Unpaid expenses for the month, soonest due first (undated last).
+function upcomingFor(ym) {
+  const m = monthData(ym);
+  if (!m) return [];
+  return m.expenses.filter(e => !e.paid)
+    .sort((a, b) => (a.dueDay || 99) - (b.dueDay || 99) || a.name.localeCompare(b.name));
+}
 
 function renderHome() {
-  const ym = homeYM;
   const keys = sortedMonthKeys();
-  if (!keys.includes(ym)) homeYM = currentYM();
-  const m = monthData(homeYM);
-  const { score, deductions } = healthScore(homeYM);
-  const col = scoreColor(score);
-  const R = 52, C = 2 * Math.PI * R;
-  const offset = C * (1 - score / 100);
-  const isCur = homeYM === currentYM();
+  if (!keys.includes(homeYM)) homeYM = currentYM();
+  const ym = homeYM;
+  const isCur = ym === currentYM();
+  const up = upcomingFor(ym);
+  const shown = homeUpcomingAll ? up : up.slice(0, 3);
+  const upTotal = up.reduce((s, e) => s + e.amount, 0);
 
-  const exp = expenseTotals(homeYM);
-  const bills = billsTotals(homeYM);
-  const loanPlan = loanPlanFor(homeYM), loanPaid = loanPaidFor(homeYM);
-  const incExpected = incomeExpectedFor(homeYM), incReceived = incomeReceivedFor(homeYM);
-  const pendingTotal = state.income.filter(i => i.status === "pending").reduce((s, i) => s + i.amount, 0);
-  const inv = investTotals();
-  const plan = m.plan;
-
-  const whyRows = deductions.length
-    ? deductions.map(d => `<div class="row"><div class="row-main"><div class="row-title">${esc(d.label)}</div>${d.detail ? `<div class="row-sub">${esc(d.detail)}</div>` : ""}</div><div class="row-value neg num">−${d.pts}</div></div>`).join("")
-    : `<div class="row"><div class="row-main"><div class="row-title muted">No deductions — a perfect month so far.</div></div></div>`;
-
-  const pvaCats = [
-    { name: "Bills", planSub: `${state.months[homeYM].expenses.filter(e=>e.recurring).length} recurring`, plan: bills.due, actual: bills.paid, actualSub: "paid so far", diff: bills.paid - bills.due, goodPos: true },
-    { name: "Spending", planSub: "monthly budget", plan: plan.spendingPlan || 0, actual: exp.paid, actualSub: "total spent", diff: (plan.spendingPlan || 0) - exp.paid, goodPos: true, isSpend: true },
-    { name: "Freelance", planSub: "expected", plan: incExpected, actual: incReceived, actualSub: "received", diff: incReceived - incExpected, goodPos: true },
-    { name: "Savings", planSub: "target", plan: plan.savingsTarget || 0, actual: m.savingsAdded || 0, actualSub: "added", diff: (m.savingsAdded || 0) - (plan.savingsTarget || 0), goodPos: true },
-    { name: "Loan payments", planSub: "due", plan: loanPlan, actual: loanPaid, actualSub: "made", diff: loanPaid - loanPlan, goodPos: true }
-  ];
-  const pvaRows = pvaCats.map(c => {
-    if (homeSeg === "plan") {
-      return `<div class="pva-row"><div class="pva-cat">${c.name}<small>${c.planSub}</small></div><div class="pva-val num">${gbp.format(c.plan)}</div></div>`;
-    }
-    const spendNote = c.isSpend && c.diff < 0 ? "" : "";
-    return `<div class="pva-row">
-      <div class="pva-cat">${c.name}<small>plan ${gbp.format(c.plan)}</small></div>
-      <div class="pva-val num">${gbp.format(c.actual)}</div>
-      ${diffSpan(c.diff, c.goodPos)}${spendNote}
+  const upRow = e => {
+    const overdue = isOverdue(e, ym);
+    const mm = methodMeta(e.method);
+    return `<div class="xrow">
+      <span class="ddbar ${mm.bar}"></span>
+      <div class="x-main">
+        <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
+        <div class="x-sub">${mm.label}${e.bank ? " · " + esc(e.bank) : ""}</div>
+      </div>
+      <div class="x-amt num" style="${overdue ? "color:var(--red)" : ""}">${gbp.format(e.amount)}</div>
+      <button class="check sm ${e.paid ? "on" : ""}" ${isCur ? "" : "disabled"}
+        onclick="togglePaid('${ym}','${e.id}')" aria-label="Mark paid">${tick}</button>
     </div>`;
-  }).join("");
+  };
 
-  const expPct = exp.due > 0 ? Math.min(100, exp.paid / exp.due * 100) : 0;
+  // Finance notes (global to-dos), undone first by due date, done at the bottom.
+  const notes = [...(state.notes || [])].sort((a, b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return (a.due || "9999").localeCompare(b.due || "9999");
+  });
+  const todayISO = today().toISOString().slice(0, 10);
+  const noteRow = n => {
+    const overdue = !n.done && n.due && n.due < todayISO;
+    return `<div class="xrow" onclick="openNoteSheet('${n.id}')" style="cursor:pointer">
+      <div class="x-main">
+        <div class="x-name ${n.done ? "note-done" : ""}">${esc(n.text)}</div>
+        ${n.due ? `<div class="x-sub" style="${overdue ? "color:var(--red)" : ""}">${overdue ? "OVERDUE · " : "DUE "}${fmtDate(n.due).toUpperCase()}</div>` : ""}
+      </div>
+      <button class="check sm ${n.done ? "on" : ""}" onclick="event.stopPropagation(); toggleNote('${n.id}')" aria-label="Mark done">${tick}</button>
+    </div>`;
+  };
 
   $("#view-home").innerHTML = `
-    ${monthNav(homeYM, keys[0] < homeYM, !isCur, "homeNav")}
+    ${monthNav(ym, keys[0] < ym, !isCur, "homeNav")}
 
-    <div class="card">
-      <div class="score-card">
-        <div class="score-ring">
-          <svg width="116" height="116" viewBox="0 0 116 116">
-            <circle class="track" cx="58" cy="58" r="${R}" fill="none" stroke-width="9"/>
-            <circle class="arc" cx="58" cy="58" r="${R}" fill="none" stroke-width="9" stroke-linecap="round"
-              stroke="${col}" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-target="${offset}"/>
-          </svg>
-          <div class="score-num"><b class="num" style="color:${col}">${score}</b><span>Score</span></div>
-        </div>
-        <div class="score-info">
-          <div class="score-status" style="color:${col}">${scoreStatus(score)}</div>
-          <div class="score-desc">${isCur ? "Your financial health this month." : `How ${monthShort(homeYM)} ended up.`}</div>
-          <button class="why-btn ${whyOpen ? "open" : ""}" onclick="toggleWhy()">Why this score? ${chevronSmall}</button>
-        </div>
-      </div>
-      <div class="why-list ${whyOpen ? "" : "hidden"}">${whyRows}</div>
-    </div>
+    ${remainingCard(ym)}
 
-    ${remainingCard(homeYM)}
+    <div class="section-header">Upcoming payments${up.length ? `<span class="sh-action num">${gbp.format(upTotal)}</span>` : ""}</div>
+    ${up.length
+      ? `<div class="card">${shown.map(upRow).join("")}</div>
+         ${up.length > 3 ? `<div style="text-align:center;margin-top:4px"><button class="btn small tinted" onclick="toggleUpcoming()">${homeUpcomingAll ? "Show less" : `See all ${up.length}`}</button></div>` : ""}`
+      : `<div class="card card-pad muted" style="font-size:15px">All caught up — nothing left to pay ${isCur ? "this month" : "that month"}. 🎉</div>`}
 
-    <div class="section-header">Plan vs Actual</div>
-    <div class="segmented">
-      <button class="${homeSeg === "plan" ? "active" : ""}" onclick="setHomeSeg('plan')">Plan</button>
-      <button class="${homeSeg === "actual" ? "active" : ""}" onclick="setHomeSeg('actual')">Actual</button>
-    </div>
-    <div class="card">${pvaRows}</div>
-
-    <div class="section-header">This month</div>
-    <div class="tiles">
-      <div class="tile">
-        <h4>Expenses paid</h4>
-        <div class="tile-big">${fmtRich(exp.paid)}</div>
-        <div class="tile-sub num">of ${gbp.format(exp.due)} due</div>
-        <div class="progress ${exp.paid >= exp.due && exp.due > 0 ? "green" : ""}"><div style="width:${expPct}%"></div></div>
-      </div>
-      <div class="tile">
-        <h4>Loan payments</h4>
-        <div class="tile-big">${fmtRich(loanPaid)}</div>
-        <div class="tile-sub num">of ${gbp.format(loanPlan)} this month</div>
-        <div class="progress"><div style="width:${loanPlan > 0 ? Math.min(100, loanPaid / loanPlan * 100) : 0}%"></div></div>
-      </div>
-      <div class="tile">
-        <h4>Freelance pending</h4>
-        <div class="tile-big">${fmtRich(pendingTotal)}</div>
-        <div class="tile-sub num">${gbp.format(incReceived)} received this month</div>
-      </div>
-      <div class="tile">
-        <h4>Savings + Invest</h4>
-        <div class="tile-big">${fmtRich(inv.total)}</div>
-        <div class="tile-sub num">${gbp.format(m.savingsAdded || 0)} saved this month</div>
-      </div>
-    </div>
+    <div class="section-header">Finance Notes${state.notes && state.notes.length ? "" : ""}</div>
+    ${notes.length ? `<div class="card">${notes.map(noteRow).join("")}</div>` : `<div class="card card-pad muted" style="font-size:14px;line-height:1.5">Things to sort out — e.g. "Get new car insurance", "Cancel CapCut subscription". Tap below to add one.</div>`}
+    <button class="btn tinted add-fab" onclick="openNoteSheet()">＋ Add Note</button>
   `;
-
-  // animate the ring after paint
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const arc = $("#view-home .arc");
-    if (arc) arc.style.strokeDashoffset = arc.dataset.target;
-  }));
 }
+
+/* Finance notes CRUD */
+window.toggleNote = (id) => {
+  const n = (state.notes || []).find(x => x.id === id);
+  if (!n) return;
+  n.done = !n.done;
+  save(); render();
+};
+window.openNoteSheet = (id) => {
+  const n = id ? (state.notes || []).find(x => x.id === id) : null;
+  openSheet(n ? "Edit Note" : "New Note", `
+    <div class="form-group">
+      ${fText("fn-text", "Note", n?.text || "", "e.g. Get new car insurance")}
+      ${fDate("fn-due", "Due date (optional)", n?.due || "")}
+      ${n ? fSwitch("fn-done", "Done", n.done) : ""}
+    </div>
+    <div class="form-hint">A simple to-do for your finances. Tick it off when it's sorted.</div>
+    ${n ? deleteBtn(`deleteNote('${n.id}')`) : ""}
+  `, () => {
+    const text = val("fn-text");
+    if (!text) return invalid("fn-text", "Write the note first.");
+    const due = val("fn-due") || null;
+    if (!state.notes) state.notes = [];
+    if (n) { n.text = text; n.due = due; n.done = id && $("#fn-done") ? checked("fn-done") : n.done; }
+    else state.notes.push({ id: uid(), text, due, done: false });
+    save(); render();
+  });
+};
+window.deleteNote = async (id) => {
+  const n = (state.notes || []).find(x => x.id === id);
+  if (!n) return;
+  closeSheet();
+  if (await confirmDialog("Delete note?", `Delete “${n.text}”?`)) {
+    state.notes = state.notes.filter(x => x.id !== id);
+    save(); render();
+  }
+};
 
 /* ---------- Expenses ---------- */
 let expFilter = "all"; // 'all' | 'dd' | 'manual' | category name
@@ -1510,7 +1506,7 @@ function renderLoans() {
       <div class="card-pad tappable" onclick="openLoanSheet('${l.id}')" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div style="font-size:17px;font-weight:600">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : ""}">${isCard ? "Card" : "Loan"}</span></div>
+            <div style="font-size:17px;font-weight:600;color:${isCard ? "var(--violet)" : "var(--manual)"}">${esc(l.name)}<span class="loan-tag ${isCard ? "card" : "loan"}">${isCard ? "Card" : "Loan"}</span></div>
             <div class="muted num" style="font-size:13px;margin-top:2px">${gbp.format(l.monthlyPayment)}/mo · DD ${ordinal(l.ddDay)}${l.apr ? ` · ${l.apr}% APR` : ""}</div>
           </div>
           <div class="chevron">${chevronSmall}</div>

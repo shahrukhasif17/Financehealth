@@ -86,6 +86,7 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
   offline, public static app (OAuth secrets, AISP regulation); CSV import is the path.
 - `income[]` — freelance entries (`status` pending/paid, `paidDate` set on toggle).
 - `savings[]`, `investments[]` — simple name/value/note entries.
+- `notes[]` — Finance Notes (to-dos) shown on Home: `{id, text, due|null, done}`.
 - `wishlist[]` — items with `type` outright/installments; buying creates expenses.
 
 ## Core engine (the part to be careful with)
@@ -101,7 +102,12 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
    Creating a loan pre-marks the current month as applied if the DD day already passed
    (the user-entered balance already reflects that payment).
 
-**Health score** (`healthScore(ym)`, computed per month from stored data, not cached):
+**Home tab** shows: month nav, the "Remaining this month" card, **Upcoming payments**
+(unpaid expenses for the month, 3 shown + "See all" toggle, tickable), and **Finance
+Notes** (add/edit/tick to-dos). The health score, Plan-vs-Actual and This-month tiles were
+removed from Home (the `healthScore`/`scoreColor`/`diffSpan` helpers remain but are unused).
+
+**Health score** (`healthScore(ym)`, retained but no longer surfaced):
 starts at 100; −10 per bill unpaid past its due day (cap −30); overspend vs plan
 proportional (1.5 pts per % over, 40 at ≥25% over); −20 if savings target unmet in the
 last 5 days of the month. Late freelance income deliberately never deducts.
