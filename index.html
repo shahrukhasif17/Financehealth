@@ -748,10 +748,41 @@ const planSnapshot = () => ({
   expectedFreelance: state.settings.expectedFreelance || 0,
   salary: state.settings.salary || 0
 });
+// Rolling autosave slots: prev = the state just before this save; prev2 = the
+// state before that. If something ever wipes data, the user can restore from
+// one of these via Settings without needing their Google Drive backup.
 function save() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-  catch (e) { console.error("Failed to save state", e); }
+  try {
+    const cur = localStorage.getItem(STORAGE_KEY);
+    const now = JSON.stringify(state);
+    if (cur && cur !== now) {
+      const p1 = localStorage.getItem(STORAGE_KEY + "_prev");
+      if (p1) localStorage.setItem(STORAGE_KEY + "_prev2", p1);
+      localStorage.setItem(STORAGE_KEY + "_prev", cur);
+    }
+    localStorage.setItem(STORAGE_KEY, now);
+  } catch (e) { console.error("Failed to save state", e); }
 }
+function hasAutoSnapshot() {
+  return !!(localStorage.getItem(STORAGE_KEY + "_prev") || localStorage.getItem(STORAGE_KEY + "_prev2"));
+}
+window.restoreAutoSnapshot = async () => {
+  const p1 = localStorage.getItem(STORAGE_KEY + "_prev");
+  const p2 = localStorage.getItem(STORAGE_KEY + "_prev2");
+  const raw = p1 || p2;
+  if (!raw) { showAlert("Nothing to restore", "No automatic snapshot is available.", [{ label: "OK", style: "bold", value: true }]); return; }
+  if (!await confirmDialog("Restore last snapshot?", "This replaces your current data with the previous autosave (the state before the most recent change). Your current data will be saved as the new snapshot in case you want to undo.", "Restore")) return;
+  try {
+    const data = JSON.parse(raw);
+    // swap: put current into prev so this action itself is undoable
+    localStorage.setItem(STORAGE_KEY + "_prev", localStorage.getItem(STORAGE_KEY) || "");
+    state = Object.assign(defaultState(), data);
+    migrate();
+    save(); closeSheet();
+    homeYM = currentYM(); expYM = currentYM(); txYM = currentYM();
+    render();
+  } catch { showAlert("Restore failed", "Snapshot was unreadable.", [{ label: "OK", style: "bold", value: true }]); }
+};
 
 /* ---------- Month engine ---------- */
 function newMonth() {
@@ -790,19 +821,12 @@ function ensureMonths() {
     fillRecurring(ym);
     ym = ymAdd(ym, 1);
   }
-  // Months planned ahead must stay in sync with the recurring templates:
-  // recurring bills added AFTER a future month was created are filled in,
-  // and unpaid instances whose template was stopped (or now ends earlier)
-  // are removed. Past/current months are never pruned — history is history.
+  // Months planned ahead: fill in recurring bills added AFTER the future
+  // month was created. We deliberately do NOT prune existing expenses here
+  // — safer to let the user delete manually than to ever wipe real entries.
   for (const fym of Object.keys(state.months)) {
     if (fym <= cur) continue;
     fillRecurring(fym);
-    const month = state.months[fym];
-    month.expenses = month.expenses.filter(e => {
-      if (!e.recurringId || e.paid) return true;
-      const t = state.recurring.find(t => t.id === e.recurringId);
-      return !!t && t.startMonth <= fym && (!t.endMonth || fym <= t.endMonth);
-    });
   }
 }
 
@@ -2335,6 +2359,7 @@ window.openSettings = () => {
     <div class="form-group">
       <div class="form-row tappable" style="cursor:pointer" onclick="exportBackup()"><label style="color:var(--accent-text)">Export a backup</label>${chev}</div>
       <div class="form-row tappable" style="cursor:pointer" onclick="importBackup()"><label style="color:var(--accent-text)">Restore from backup</label>${chev}</div>
+      ${hasAutoSnapshot() ? `<div class="form-row tappable" style="cursor:pointer" onclick="restoreAutoSnapshot()"><label style="color:var(--accent-text)">Undo last change (auto snapshot)</label>${chev}</div>` : ""}
       <div class="form-row" style="pointer-events:none"><label class="muted">Last backup</label><span class="muted num" style="flex:1;text-align:right">${s.lastBackup ? fmtDate(s.lastBackup) : "Never"}</span></div>
     </div>
     <div class="form-hint">Everything lives on this device only. Export a backup now and then and save it to <b>Google Drive or iCloud Drive</b> from the share sheet — especially before removing the app from your home screen. The app reminds you monthly.</div>
