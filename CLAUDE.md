@@ -46,6 +46,9 @@ in `index.html`):
   which writes `plan.salary` for that month and every later existing month and updates
   `settings.salary` so new months inherit it — Settings no longer edits salary),
   `banks[]` (user's bank names, default Monzo/Barclays/Halifax/Tesco),
+  `payCycleDay` (1–28, default 1 = normal calendar month; set from Settings' "Month
+  starts on day" so "this month" can run payday-to-payday, e.g. 25th-to-25th, instead
+  of 1st-to-1st — see **Pay-cycle months** below),
   `hideRemaining` (privacy toggle for the "Remaining this month" card, which shows
   salary + freelance received − expenses paid on Home and Expenses — deliberately NOT
   minus loan payments or savings, so it reconciles with the Income/Expenses shown).
@@ -120,6 +123,31 @@ in `index.html`):
    date, reduces the balance and records the month. Idempotent by construction.
    Creating a loan pre-marks the current month as applied if the DD day already passed
    (the user-entered balance already reflects that payment).
+
+**Pay-cycle months** (`payCycleDay`, default 1): month buckets normally align with the
+calendar (1st–last), but if the user gets paid on a different day, `cycleYMOf(date)`
+reassigns any date before `payCycleDay` to the *previous* bucket, so a "month" runs
+payday-to-payday. `currentYM()` is just `cycleYMOf(today())` — every other engine
+function (`ensureMonths`, `processLoans`, editable-months window, etc.) is unaffected
+because they only ever compare `"YYYY-MM"` bucket labels, never raw dates. Three things
+had to change to stay correct once a bucket can span two calendar months:
+- **`dueDay`/`ddDay`** (a bare 1–31 field on expenses/loans) is ambiguous inside a
+  shifted bucket — a due day *before* `payCycleDay` actually falls in the bucket's
+  second calendar month. `dueDateInBucket(ym, day)` resolves this to a real
+  `"YYYY-MM-DD"`, and `isOverdue()`/`processLoans()` compare against that (as date
+  *strings*, not `Date` objects with time components, to avoid off-by-time-of-day
+  regressions) instead of comparing raw day-of-month integers.
+- **Income and CSV-statement dates** are classified into buckets via `bucketOf(dateStr)`
+  (a `cycleYMOf` wrapper) instead of a plain `.slice(0, 7)` — see `incomeForMonth()`,
+  `incomeExpectedFor()`, `incomeReceivedFor()`, and the statement-import distribution.
+- **`monthNav()`** shows the actual date range (`cycleRangeLabel()`, e.g. "25 Jun – 24
+  Jul") under the month name whenever `payCycleDay !== 1`, so a bucket spanning two
+  calendar months isn't confusing; it's blank (no behaviour/UI change) at the default.
+
+Deliberately **left on the plain calendar** despite the cycle setting: a loan/card's
+`endDate` and a recurring template's `endMonth` (both user-picked from a date field
+meaning "ends around this month") — reinterpreting those through the cycle would add
+risk for no real benefit, since "ends in March" is close enough without day-precision.
 
 **Home tab** shows: month nav, the "Remaining this month" card, **Upcoming payments**
 (unpaid expenses for the month, 3 shown + "See all" toggle, tickable), and **Finance
