@@ -206,8 +206,11 @@ installment expiry without waiting.
   recurring bills) when navigated to via the ‹ › arrows, so you can plan ahead before
   payday. A "Planning ahead" hint shows on future months.
 - Escape all user strings with `esc()` when building HTML.
-- **Search** (`#hdrSearch` magnifying-glass button in the header, next to the gear; also
-  a "Search" pill next to the Filter button on the Expenses tab) opens
+- **Expenses-tab search** is an *inline* input (`.exp-search`, next to the Filter button):
+  typing filters the viewed month's rows in place via `applyExpSearch()` (rows carry a
+  `data-s` haystack of name/category/bank; non-matches get `.hidden`) — no overlay, no
+  re-render, keyboard stays up; the filter re-applies after every render. The global
+  **Search** (`#hdrSearch` magnifying-glass button in the header, next to the gear) opens
   a full-screen `#searchOverlay` — not a 6th tab, to keep the tab bar at 5. `searchAll(q)`
   case-insensitive substring-matches across expenses (all months, name/category/bank),
   loans/cards, savings, investments, income and notes; recurring expenses are deduped to
