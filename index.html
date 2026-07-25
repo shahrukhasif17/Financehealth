@@ -902,7 +902,7 @@ function monthIn(ym) {
   const m = monthData(ym);
   return (m ? (m.plan.salary || 0) : 0) + incomeReceivedFor(ym);
 }
-function monthOut(ym) { return expenseTotals(ym).paid; }
+function monthOut(ym) { return monthData(ym) ? expenseTotals(ym).paid : 0; }
 function monthNet(ym) { return monthIn(ym) - monthOut(ym); }
 
 /* ---------- Visual helpers ---------- */
@@ -1870,7 +1870,8 @@ function renderInvest() {
 
   const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20.5h18"/><path d="M4 16.5l5-5 3.5 3.5L20 8.5"/><path d="M15.5 8.5H20V13"/></svg>';
   const hasAny = state.savings.length || state.investments.length;
-  const hasTrend = sortedMonthKeys().length >= 2;
+  const curYM = currentYM();
+  const hasTrend = sortedMonthKeys().filter(k => k <= curYM).length >= 2;
 
   $("#view-invest").innerHTML = `
     <div class="large-title">Invest</div>
