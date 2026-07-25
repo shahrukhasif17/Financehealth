@@ -1441,10 +1441,34 @@ window.expNav = d => {
   expYM = target; render();
 };
 window.setExpFilter = f => { expFilter = f; render(); };
+// Ticking a dd/so expense that shares its name with a loan/card applies that
+// month's payment to the loan balance IMMEDIATELY — even for a future month —
+// instead of waiting for the DD date to pass. Unticking reverses it (and if
+// the real date has already passed, processLoans simply re-applies, which is
+// correct: the payment genuinely happened). Idempotent via appliedMonths.
+function syncLoanForExpense(e, ym) {
+  if (e.method !== "dd" && e.method !== "so") return;
+  const nm = e.name.trim().toLowerCase();
+  const loan = state.loans.find(l => l.name.trim().toLowerCase() === nm);
+  if (!loan) return;
+  loan.appliedMonths = loan.appliedMonths || [];
+  const endYM = loan.endDate ? loan.endDate.slice(0, 7) : null;
+  if (e.paid) {
+    if (!loan.appliedMonths.includes(ym) && !(loan.skippedMonths || []).includes(ym) &&
+        !(endYM && ym > endYM) && loan.remainingBalance > 0) {
+      loan.remainingBalance = Math.max(0, +(loan.remainingBalance - loan.monthlyPayment).toFixed(2));
+      loan.appliedMonths.push(ym);
+    }
+  } else if (loan.appliedMonths.includes(ym)) {
+    loan.remainingBalance = +(loan.remainingBalance + loan.monthlyPayment).toFixed(2);
+    loan.appliedMonths = loan.appliedMonths.filter(k => k !== ym);
+  }
+}
 window.togglePaid = (ym, id) => {
   const e = monthData(ym).expenses.find(x => x.id === id);
   if (!e) return;
   e.paid = !e.paid;
+  syncLoanForExpense(e, ym);
   save(); render();
 };
 
@@ -2207,8 +2231,10 @@ function saveExpenseForm(e) {
   if (!e) expDefaults.rec = rec; // bulk entry keeps the Recurring toggle as-is
   if (e) {
     const prevName = e.name;
+    const wasPaid = e.paid;
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
     e.method = method; e.category = category; e.bank = bank;
+    if (e.paid !== wasPaid) syncLoanForExpense(e, expYM);
     if (rec && !e.recurringId) { // became recurring, or old data whose template link is missing
       const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth, method, category, bank };
       state.recurring.push(t);
