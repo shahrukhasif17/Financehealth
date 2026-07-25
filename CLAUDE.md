@@ -99,6 +99,9 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 1. **`ensureMonths()`** — walks from the earliest stored month to the current month,
    creating any missing months and instantiating recurring templates (respecting
    `startMonth`/`endMonth`). Handles the app not being opened for several months.
+   It also **re-syncs months planned ahead** (keys > current): fills in templates
+   created after the future month was made, and prunes *unpaid* instances whose
+   template was stopped or now ends earlier. Past/current months are never pruned.
 2. **`processLoans()`** — for each loan, for each month since `startMonth` whose DD day
    has passed, not already in `appliedMonths`/`skippedMonths` and not past the loan's end
    date, reduces the balance and records the month. Idempotent by construction.
