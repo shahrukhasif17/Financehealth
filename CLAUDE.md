@@ -126,8 +126,10 @@ installment expiry without waiting.
   the model, surfaced via `incomeForMonth(ym)`); salary is set once in Settings.
 - Add/edit uses the bottom-sheet (`openSheet`); deletes confirm via `confirmDialog`
   (iOS-style alert). Settings opens from the header gear.
-- Past months are read-only in Expenses; Home can browse historical months' scores and
-  Plan-vs-Actual.
+- Past months are read-only in Expenses; the **current and future months (up to
+  `MONTHS_AHEAD` = 12) are editable** — future months are created on demand (with their
+  recurring bills) when navigated to via the ‹ › arrows, so you can plan ahead before
+  payday. A "Planning ahead" hint shows on future months.
 - Escape all user strings with `esc()` when building HTML.
 
 ## Deployment

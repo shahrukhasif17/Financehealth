@@ -1064,7 +1064,17 @@ window.deleteNote = async (id) => {
 
 /* ---------- Expenses ---------- */
 let expFilter = "all"; // 'all' | 'dd' | 'manual' | category name
-window.expNav = d => { expYM = ymAdd(expYM, d); render(); };
+const MONTHS_AHEAD = 12; // how far ahead you can plan
+// Navigate months. Backward only to the earliest known month; forward up to
+// MONTHS_AHEAD so you can set up future months before payday.
+window.expNav = d => {
+  const cap = ymAdd(currentYM(), MONTHS_AHEAD);
+  const keys = sortedMonthKeys();
+  const earliest = (keys[0] && keys[0] < currentYM()) ? keys[0] : currentYM();
+  const target = ymAdd(expYM, d);
+  if (target < earliest || target > cap) return;
+  expYM = target; render();
+};
 window.setExpFilter = f => { expFilter = f; render(); };
 window.togglePaid = (ym, id) => {
   const e = monthData(ym).expenses.find(x => x.id === id);
@@ -1096,10 +1106,17 @@ const methodMeta = m => m === "dd" ? { cls: "mm-dd", label: "Direct debit", bar:
   : { cls: "mm-man", label: "Manual", bar: "" };
 
 function renderExpenses() {
+  const cap = ymAdd(currentYM(), MONTHS_AHEAD);
+  // A future month is created on demand (with its recurring bills) the first
+  // time you navigate to it, so you can plan ahead.
+  if (!state.months[expYM]) {
+    if (expYM > currentYM() && expYM <= cap) { state.months[expYM] = newMonth(); fillRecurring(expYM); save(); }
+    else expYM = currentYM();
+  }
   const keys = sortedMonthKeys();
-  if (!keys.includes(expYM)) expYM = currentYM();
   const ym = expYM;
   const m = monthData(ym);
+  const isFuture = ym > currentYM();
   const readOnly = ym < currentYM();
   const { due, paid } = expenseTotals(ym);
   const pct = due > 0 ? Math.min(100, paid / due * 100) : 0;
@@ -1154,7 +1171,8 @@ function renderExpenses() {
   const emptyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5"/><path d="M3 9.5h18"/><path d="M6.5 14.5h4"/></svg>';
 
   $("#view-expenses").innerHTML = `
-    ${monthNav(ym, keys[0] < ym, ym < currentYM(), "expNav")}
+    ${monthNav(ym, keys[0] < ym, ym < cap, "expNav")}
+    ${isFuture ? `<div class="subtitle" style="text-align:center;margin:-8px 0 14px">Planning ahead · recurring bills are already here</div>` : ""}
     ${remainingCard(ym)}
 
     <div class="section-header">Income<span class="sh-action num">${gbp.format(salary + flReceived)}</span></div>
