@@ -1306,9 +1306,9 @@ function renderExpenses() {
 
     <div class="section-header">Income<span class="sh-action num">${gbp.format(salary + flReceived)}</span></div>
     <div class="card">
-      <div class="xrow" ${readOnly ? "" : `onclick="openSettings()"`} style="cursor:pointer">
-        <span class="ddbar dd"></span>
-        <div class="x-main"><div class="x-name">Salary</div><div class="x-sub">MONTHLY${readOnly ? "" : " · TAP TO EDIT"}</div></div>
+      <div class="xrow" ${readOnly ? "" : `onclick="openSalarySheet('${ym}')"`} style="cursor:pointer">
+        ${avatar("Salary", "var(--accent-text)", "sm")}
+        <div class="x-main" style="margin-left:10px"><div class="x-name">Salary</div><div class="x-sub">MONTHLY${readOnly ? "" : (salary ? " · TAP TO EDIT" : " · TAP TO SET")}</div></div>
         <div class="x-amt num ${salary ? "pos" : "muted"}">${gbp.format(salary)}</div>
       </div>
       ${incomeRows}
@@ -2142,6 +2142,23 @@ window.openPayExtra = (id) => {
 };
 
 /* ---------- Income sheet ---------- */
+// Set monthly salary from the month view. Applies to this month and every
+// later month already created, and becomes the default for future months —
+// so it stays the same each month until you change it again.
+window.openSalarySheet = (ym) => {
+  const m = monthData(ym);
+  if (!m) return;
+  const curVal = m.plan.salary ?? (state.settings.salary || 0);
+  openSheet("Monthly Salary", `
+    <div class="form-group">${fAmount("sal-amt", "Take-home salary", curVal || "")}</div>
+    <div class="form-hint">Your monthly salary from ${monthName(ym)} onward. It carries into every new month automatically and stays the same until you change it again here. Past months keep what they were.</div>
+  `, () => {
+    const v = num("sal-amt");
+    for (const k of sortedMonthKeys()) if (k >= ym) state.months[k].plan.salary = v;
+    state.settings.salary = v; // months created later inherit this
+    save(); render();
+  }, { saveLabel: "Save" });
+};
 window.openIncomeSheet = (id) => {
   const i = id ? state.income.find(x => x.id === id) : null;
   const defDate = (typeof expYM === "string" ? expYM : currentYM()) + "-15";
@@ -2241,13 +2258,12 @@ window.openSettings = () => {
   const s = state.settings;
   const chev = '<span class="chevron">' + chevronSmall + '</span>';
   openSheet("Settings", `
-    <div class="section-header" style="margin-top:4px">Income &amp; plan</div>
+    <div class="section-header" style="margin-top:4px">Monthly plan</div>
     <div class="form-group">
-      ${fAmount("st-salary", "Monthly salary", s.salary || "")}
       ${fAmount("st-spend", "Spending plan", s.spendingPlan || "")}
       ${fAmount("st-save", "Savings target", s.savingsTarget || "")}
     </div>
-    <div class="form-hint">Salary drives the "Remaining this month" figure; the spending plan and savings target track how you're doing.</div>
+    <div class="form-hint">Set your <b>salary</b> on the Expenses tab (tap the Salary row). The spending plan and savings target track how you're doing.</div>
 
     <div class="section-header">Banks</div>
     <div class="form-group">
@@ -2269,7 +2285,6 @@ window.openSettings = () => {
       ...state.settings,
       spendingPlan: num("st-spend"),
       savingsTarget: num("st-save"),
-      salary: num("st-salary"),
       banks: banks.length ? banks : [...DEFAULT_BANKS]
     };
     // keep the current month's plan snapshot in sync
