@@ -81,7 +81,10 @@ in `index.html`):
   *unpaid* sibling instance from the edited month forward (already-created future
   months included, not just the template) — mirrors the "changes apply from here
   forward, history stays put" rule used for salary. Paid instances and past months are
-  never rewritten.
+  never rewritten. An expense saved with Recurring on but **no `recurringId`** (old
+  per-month data, or a lost link) gets a fresh template AND adopts same-named unpaid,
+  unlinked copies in this + later months (matched case-insensitively on the *pre-edit*
+  name), linking them so future edits sync too.
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.
@@ -126,8 +129,12 @@ in `index.html`):
 
 **Pay-cycle months** (`payCycleDay`, default 1): month buckets normally align with the
 calendar (1st–last), but if the user gets paid on a different day, `cycleYMOf(date)`
-reassigns any date before `payCycleDay` to the *previous* bucket, so a "month" runs
-payday-to-payday. `currentYM()` is just `cycleYMOf(today())` — every other engine
+reassigns any date on/after `payCycleDay` to the **next** month's bucket — the cycle
+starting on payday is named after the month it *pays for* (salary on 25 Jul funds
+August's bills, so 25 Jul – 24 Aug is bucket `"2026-08"`). Consequence: bills due on
+days 1–24 keep their plain-calendar bucket, so enabling the setting needs **no data
+migration** for typical bills; a due day ≥ `payCycleDay` resolves to the *previous*
+calendar month (`dueDateInBucket`). `currentYM()` is just `cycleYMOf(today())` — every other engine
 function (`ensureMonths`, `processLoans`, editable-months window, etc.) is unaffected
 because they only ever compare `"YYYY-MM"` bucket labels, never raw dates. Three things
 had to change to stay correct once a bucket can span two calendar months:
@@ -191,7 +198,8 @@ installment expiry without waiting.
   recurring bills) when navigated to via the ‹ › arrows, so you can plan ahead before
   payday. A "Planning ahead" hint shows on future months.
 - Escape all user strings with `esc()` when building HTML.
-- **Search** (`#hdrSearch` magnifying-glass button in the header, next to the gear) opens
+- **Search** (`#hdrSearch` magnifying-glass button in the header, next to the gear; also
+  a "Search" pill next to the Filter button on the Expenses tab) opens
   a full-screen `#searchOverlay` — not a 6th tab, to keep the tab bar at 5. `searchAll(q)`
   case-insensitive substring-matches across expenses (all months, name/category/bank),
   loans/cards, savings, investments, income and notes; recurring expenses are deduped to

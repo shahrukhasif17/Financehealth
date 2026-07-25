@@ -726,22 +726,26 @@ const ymOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0"
 // ymOf, but if payCycleDay is set (e.g. salary lands on the 28th), a date
 // before that day in the calendar month belongs to the PREVIOUS bucket, so
 // "this month" runs payday-to-payday instead of 1st-to-1st.
+// Bucket naming: the cycle starting on payday is named after the month it
+// PAYS FOR — salary on 25 Jul funds August's bills, so 25 Jul – 24 Aug is
+// bucket "August". Dates on/after the cycle day therefore belong to the NEXT
+// month's bucket. (With cd=1 this is the plain calendar month, unchanged.)
 function cycleYMOfFor(d, cd) {
   let y = d.getFullYear(), m = d.getMonth();
-  if (d.getDate() < cd) { m -= 1; if (m < 0) { m = 11; y--; } }
+  if (cd > 1 && d.getDate() >= cd) { m += 1; if (m > 11) { m = 0; y++; } }
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 function cycleYMOf(d) { return cycleYMOfFor(d, (state && state.settings.payCycleDay) || 1); }
 // Bucket an ISO "YYYY-MM-DD" date string (income/transaction dates) the same way.
 function bucketOf(dateStr) { return dateStr ? cycleYMOf(new Date(dateStr + "T12:00:00")) : null; }
 const currentYM = () => cycleYMOf(today());
-// A dueDay (1-31) is ambiguous on its own once months don't start on the 1st:
-// if it falls before payCycleDay it's actually in the bucket's *second*
-// calendar month (e.g. cycle day 25, dueDay 5 → the 5th of the month after
-// the bucket's label month). Returns the real "YYYY-MM-DD" it lands on.
+// A dueDay (1-31) is ambiguous on its own once months don't start on the 1st.
+// Bucket "August" spans 25 Jul – 24 Aug: a due day < cd falls in August
+// itself, a due day >= cd falls in the PREVIOUS calendar month (late July).
+// Returns the real "YYYY-MM-DD" it lands on.
 function dueDateInBucketFor(ym, day, cd) {
   const [y, m] = ym.split("-").map(Number);
-  const offset = day >= cd ? 0 : 1;
+  const offset = (cd > 1 && day >= cd) ? -1 : 0;
   const d = new Date(y, m - 1 + offset, day);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -889,6 +893,10 @@ function migrateCycleShift(oldCd, newCd) {
     const realIso = dueDateInBucketFor(bkt, day, oldCd);
     return cycleYMOfFor(new Date(realIso + "T12:00:00"), newCd);
   };
+  // Two passes: collect every move first, then apply — pushing directly while
+  // iterating would re-process a bill that lands in a later, not-yet-visited
+  // bucket and shift it twice.
+  const pending = [];
   for (const ym of Object.keys(state.months)) {
     const m = state.months[ym];
     const stay = [];
@@ -896,11 +904,14 @@ function migrateCycleShift(oldCd, newCd) {
       if (!e.dueDay) { stay.push(e); continue; }
       const newYm = shiftBucket(ym, e.dueDay);
       if (newYm === ym) { stay.push(e); continue; }
-      if (!state.months[newYm]) state.months[newYm] = newMonth();
-      state.months[newYm].expenses.push(e);
+      pending.push([newYm, e]);
       moved++;
     }
     m.expenses = stay;
+  }
+  for (const [ym, e] of pending) {
+    if (!state.months[ym]) state.months[ym] = newMonth();
+    state.months[ym].expenses.push(e);
   }
   for (const loan of state.loans) {
     const day = loan.ddDay || 1;
@@ -1206,8 +1217,8 @@ function cycleRangeLabel(ym) {
   const cd = state.settings.payCycleDay || 1;
   if (cd === 1) return "";
   const [y, m] = ym.split("-").map(Number);
-  const start = new Date(y, m - 1, cd);
-  const end = new Date(y, m, cd - 1);
+  const start = new Date(y, m - 2, cd);
+  const end = new Date(y, m - 1, cd - 1);
   const fmt = d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   return `${fmt(start)} – ${fmt(end)}`;
 }
@@ -1540,6 +1551,7 @@ function renderExpenses() {
     ${m.expenses.length ? `<div style="margin-bottom:12px;display:flex;align-items:center">
         <button class="filter-btn" onclick="openExpenseFilter()">Filter: <span class="fb-val">${esc(filterLabel(expFilter))}</span> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         ${expFilter !== "all" ? `<button class="filter-clear" onclick="setExpFilter('all')">Clear</button>` : ""}
+        <button class="filter-btn" style="margin-left:auto" onclick="openSearch()" aria-label="Search payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:1"><circle cx="11" cy="11" r="7.2"/><path d="M20.5 20.5 16 16"/></svg> Search</button>
       </div>` : ""}
     ${m.expenses.length
       ? (list.length
@@ -2174,12 +2186,27 @@ function saveExpenseForm(e) {
   expDefaults = { ...expDefaults, method, category, [bankKeyFor(method)]: bank || "" };
   if (!e) expDefaults.rec = rec; // bulk entry keeps the Recurring toggle as-is
   if (e) {
+    const prevName = e.name;
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
     e.method = method; e.category = category; e.bank = bank;
-    if (rec && !e.recurring) { // became recurring
+    if (rec && !e.recurringId) { // became recurring, or old data whose template link is missing
       const t = { id: uid(), name, amount, dueDay, startMonth: expYM, endMonth, method, category, bank };
       state.recurring.push(t);
       e.recurring = true; e.recurringId = t.id;
+      // Adopt same-named unlinked copies in this and later months (the user's
+      // "default bills" entered per-month before recurring existed, or whose
+      // link was lost) so this edit reaches them and future edits stay in sync.
+      for (const ym of Object.keys(state.months)) {
+        if (ym < expYM) continue;
+        for (const sib of state.months[ym].expenses) {
+          if (sib.id !== e.id && !sib.paid && !sib.recurringId &&
+              sib.name.trim().toLowerCase() === prevName.trim().toLowerCase()) {
+            sib.name = name; sib.amount = amount; sib.dueDay = dueDay;
+            sib.method = method; sib.category = category; sib.bank = bank;
+            sib.recurring = true; sib.recurringId = t.id;
+          }
+        }
+      }
     } else if (!rec && e.recurring) { // stopped recurring
       state.recurring = state.recurring.filter(t => t.id !== e.recurringId);
       e.recurring = false; e.recurringId = null;
@@ -2654,7 +2681,7 @@ window.openSettings = () => {
     <div class="form-group">
       <div class="form-row"><label for="st-cycle">Month starts on day</label><input type="number" id="st-cycle" inputmode="numeric" min="1" max="28" step="1" value="${s.payCycleDay || 1}"></div>
     </div>
-    <div class="form-hint">Leave as <b>1</b> for a normal calendar month. If your salary lands on, say, the 28th, set this to <b>28</b> so "this month" runs payday-to-payday instead of 1st-to-1st — bills, income and the month you're viewing all shift to match.</div>
+    <div class="form-hint">Leave as <b>1</b> for a normal calendar month. If your salary lands on, say, the 25th, set this to <b>25</b> — a payday on 25&nbsp;Jul starts <b>August's</b> month (25&nbsp;Jul&nbsp;–&nbsp;24&nbsp;Aug), since that pay covers August's bills.</div>
 
     <div class="section-header">Banks</div>
     <div class="form-group">
