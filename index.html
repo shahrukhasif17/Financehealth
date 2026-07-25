@@ -157,6 +157,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .month-nav button:disabled { color: var(--text-3); }
 .month-nav svg { width: 20px; height: 20px; }
 .today-chip { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-accent); background: var(--accent); padding: 2px 8px; border-radius: 999px; vertical-align: 3px; margin-left: 8px; }
+.month-range { font-size: 12px; font-weight: 500; color: var(--text-2); margin-top: 1px; }
 
 /* ============ Cards & lists ============ */
 .card {
@@ -494,6 +495,46 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 .footer-note { text-align: center; font-size: 12px; color: var(--text-3); padding: 8px 0 16px; }
 
+/* ============ Search overlay ============ */
+.search-overlay {
+  position: fixed; inset: 0; z-index: 70; background: var(--bg);
+  display: flex; flex-direction: column;
+  transform: translateY(-100%); opacity: 0;
+  transition: transform 240ms ease-out, opacity 240ms ease-out;
+  pointer-events: none;
+}
+.search-overlay.show { transform: none; opacity: 1; pointer-events: auto; }
+.search-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 10px;
+  flex-shrink: 0; border-bottom: 0.5px solid var(--separator);
+}
+.search-field {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: var(--fill); border-radius: 12px; padding: 9px 12px;
+  color: var(--text-2);
+}
+.search-field svg { width: 18px; height: 18px; flex-shrink: 0; }
+.search-field input {
+  flex: 1; min-width: 0; border: none; background: transparent; color: var(--text);
+  font: inherit; font-size: 16px; outline: none;
+}
+.search-field input::placeholder { color: var(--text-3); }
+#searchClearBtn { color: var(--text-3); flex-shrink: 0; display: flex; }
+#searchClearBtn svg { width: 18px; height: 18px; }
+.search-bar #searchCancelBtn { color: var(--accent-text); font-size: 16px; flex-shrink: 0; padding: 4px 0 4px 2px; }
+.search-results {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+.search-hint { text-align: center; color: var(--text-3); font-size: 14px; padding: 48px 24px; line-height: 1.5; }
+.sr-group-label {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--text-2); margin: 18px 4px 8px;
+}
+.sr-group-label:first-child { margin-top: 6px; }
+.sr-match { color: var(--accent-text); }
+
 /* ============ Splash screen ============ */
 .splash {
   position: fixed; inset: 0; z-index: 100; background: var(--bg);
@@ -569,7 +610,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 <header class="header">
   <div class="header-inner">
-    <button class="icon-btn hidden" id="hdrLeft" aria-label="Back"></button>
+    <button class="icon-btn" id="hdrSearch" aria-label="Search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.2"/><path d="M20.5 20.5 16 16"/></svg>
+    </button>
     <div class="header-title" id="hdrTitle">Finance Health</div>
     <button class="icon-btn" id="hdrGear" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/></svg>
@@ -622,6 +665,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div class="as-backdrop" id="asBackdrop"></div>
 <div class="action-sheet" id="actionSheetBox"></div>
 
+<div class="search-overlay" id="searchOverlay">
+  <div class="search-bar">
+    <div class="search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.2"/><path d="M20.5 20.5 16 16"/></svg>
+      <input type="text" id="searchInput" placeholder="Search payments, loans, notes…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="searchClearBtn" class="hidden" aria-label="Clear">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.5 12.1-1.4 1.4L12 13.4l-2.1 2.1-1.4-1.4L10.6 12l-2.1-2.1 1.4-1.4L12 10.6l2.1-2.1 1.4 1.4L13.4 12l2.1 2.1z"/></svg>
+      </button>
+    </div>
+    <button id="searchCancelBtn">Cancel</button>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+</div>
+
 <div class="alert-backdrop" id="alertBackdrop">
   <div class="alert">
     <div class="alert-body">
@@ -665,7 +722,30 @@ function today() {
   return new Date();
 }
 const ymOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-const currentYM = () => ymOf(today());
+// "Which month bucket does this real date fall in?" — normally identical to
+// ymOf, but if payCycleDay is set (e.g. salary lands on the 28th), a date
+// before that day in the calendar month belongs to the PREVIOUS bucket, so
+// "this month" runs payday-to-payday instead of 1st-to-1st.
+function cycleYMOf(d) {
+  const cd = (state && state.settings.payCycleDay) || 1;
+  let y = d.getFullYear(), m = d.getMonth();
+  if (d.getDate() < cd) { m -= 1; if (m < 0) { m = 11; y--; } }
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+// Bucket an ISO "YYYY-MM-DD" date string (income/transaction dates) the same way.
+function bucketOf(dateStr) { return dateStr ? cycleYMOf(new Date(dateStr + "T12:00:00")) : null; }
+const currentYM = () => cycleYMOf(today());
+// A dueDay (1-31) is ambiguous on its own once months don't start on the 1st:
+// if it falls before payCycleDay it's actually in the bucket's *second*
+// calendar month (e.g. cycle day 25, dueDay 5 → the 5th of the month after
+// the bucket's label month). Returns the real "YYYY-MM-DD" it lands on.
+function dueDateInBucket(ym, day) {
+  const cd = (state && state.settings.payCycleDay) || 1;
+  const [y, m] = ym.split("-").map(Number);
+  const offset = day >= cd ? 0 : 1;
+  const d = new Date(y, m - 1 + offset, day);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function ymAdd(ym, n) {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + n, 1);
@@ -700,7 +780,7 @@ const DEFAULT_BANKS = ["Monzo", "Barclays", "Halifax", "Tesco"];
 function defaultState() {
   return {
     version: 1,
-    settings: { spendingPlan: 0, savingsTarget: 0, expectedFreelance: 0, salary: 0, banks: [...DEFAULT_BANKS], hideRemaining: false, lastBackup: null },
+    settings: { spendingPlan: 0, savingsTarget: 0, expectedFreelance: 0, salary: 0, banks: [...DEFAULT_BANKS], hideRemaining: false, lastBackup: null, payCycleDay: 1 },
     months: {},      // "YYYY-MM" -> { expenses:[], savingsAdded:0, plan:{...planSnapshot()}, statements:{bank:{imported,tx:[{d,n,a}]}} }
     recurring: [],   // templates: { id, name, amount, dueDay, startMonth, endMonth|null, method, category, bank }
     loans: [],       // { id, name, type:'loan'|'card', apr, monthlyPayment, ddDay, endDate, originalTotal, remainingBalance, startMonth, appliedMonths:[], skippedMonths:[] }
@@ -729,6 +809,7 @@ function migrate() {
   if (!Array.isArray(s.banks) || !s.banks.length) s.banks = [...DEFAULT_BANKS];
   if (s.hideRemaining == null) s.hideRemaining = false;
   if (s.lastBackup === undefined) s.lastBackup = null;
+  if (!(s.payCycleDay >= 1 && s.payCycleDay <= 28)) s.payCycleDay = 1;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
   for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; if (l.extraTotal == null) l.extraTotal = 0; }
   if (!Array.isArray(state.notes)) state.notes = [];
@@ -834,7 +915,7 @@ function ensureMonths() {
 // each applied month is recorded so re-running never double-charges.
 function processLoans() {
   const cur = currentYM();
-  const dayNow = today().getDate();
+  const todayISO = today().toISOString().slice(0, 10);
   for (const loan of state.loans) {
     loan.appliedMonths = loan.appliedMonths || [];
     loan.skippedMonths = loan.skippedMonths || [];
@@ -842,7 +923,7 @@ function processLoans() {
     let ym = loan.startMonth || cur;
     while (ym <= cur) {
       const pastEnd = endYM && ym > endYM;
-      const due = ym < cur || (ym === cur && dayNow >= (loan.ddDay || 1));
+      const due = ym < cur || (ym === cur && todayISO >= dueDateInBucket(ym, loan.ddDay || 1));
       if (!pastEnd && due && loan.remainingBalance > 0 &&
           !loan.appliedMonths.includes(ym) && !loan.skippedMonths.includes(ym)) {
         loan.remainingBalance = Math.max(0, +(loan.remainingBalance - loan.monthlyPayment).toFixed(2));
@@ -880,7 +961,8 @@ function isOverdue(e, ym) {
   const cur = currentYM();
   if (ym < cur) return true;
   if (ym > cur) return false;
-  return today().getDate() > e.dueDay;
+  const todayISO = today().toISOString().slice(0, 10);
+  return todayISO > dueDateInBucket(ym, e.dueDay);
 }
 function loanActiveIn(loan, ym) {
   const endYM = loan.endDate ? loan.endDate.slice(0, 7) : null;
@@ -893,20 +975,20 @@ function loanPaidFor(ym) {
   return state.loans.filter(l => (l.appliedMonths || []).includes(ym)).reduce((s, l) => s + l.monthlyPayment, 0);
 }
 function incomeExpectedFor(ym) {
-  const entries = state.income.filter(i => i.expectedDate && i.expectedDate.slice(0, 7) === ym);
+  const entries = state.income.filter(i => i.expectedDate && bucketOf(i.expectedDate) === ym);
   if (entries.length) return entries.reduce((s, i) => s + i.amount, 0);
   const m = monthData(ym);
   return m ? (m.plan.expectedFreelance || 0) : 0;
 }
 function incomeReceivedFor(ym) {
-  return state.income.filter(i => i.status === "paid" && i.paidDate && i.paidDate.slice(0, 7) === ym)
+  return state.income.filter(i => i.status === "paid" && i.paidDate && bucketOf(i.paidDate) === ym)
     .reduce((s, i) => s + i.amount, 0);
 }
 // Freelance income entries relevant to a month (paid in it, or expected in it)
 function incomeForMonth(ym) {
   return state.income.filter(i =>
-    (i.paidDate && i.paidDate.slice(0, 7) === ym) ||
-    (i.status !== "paid" && i.expectedDate && i.expectedDate.slice(0, 7) === ym)
+    (i.paidDate && bucketOf(i.paidDate) === ym) ||
+    (i.status !== "paid" && i.expectedDate && bucketOf(i.expectedDate) === ym)
   ).sort((a, b) => (a.status === "paid" ? 1 : 0) - (b.status === "paid" ? 1 : 0) ||
                    (a.expectedDate || "9999").localeCompare(b.expectedDate || "9999"));
 }
@@ -1081,12 +1163,24 @@ window.navToday = (which) => {
   if (which === "exp") expYM = cur; else if (which === "home") homeYM = cur; else if (which === "tx") txYM = cur;
   render();
 };
+// When months don't start on the 1st, show the actual payday-to-payday range
+// under the month name so it's clear what's included (e.g. "28 Jun – 27 Jul").
+function cycleRangeLabel(ym) {
+  const cd = state.settings.payCycleDay || 1;
+  if (cd === 1) return "";
+  const [y, m] = ym.split("-").map(Number);
+  const start = new Date(y, m - 1, cd);
+  const end = new Date(y, m, cd - 1);
+  const fmt = d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 function monthNav(ym, canPrev, canNext, fnName, todayKey) {
   const notCur = ym !== currentYM();
   const tappable = notCur && todayKey;
+  const range = cycleRangeLabel(ym);
   return `<div class="month-nav">
     <button ${canPrev ? "" : "disabled"} onclick="${fnName}(-1)" aria-label="Previous month">${chevronLeft}</button>
-    <div class="month-label" ${tappable ? `onclick="navToday('${todayKey}')" style="cursor:pointer"` : ""}>${monthName(ym)}${tappable ? '<span class="today-chip">Today</span>' : ""}</div>
+    <div class="month-label" ${tappable ? `onclick="navToday('${todayKey}')" style="cursor:pointer"` : ""}>${monthName(ym)}${tappable ? '<span class="today-chip">Today</span>' : ""}${range ? `<div class="month-range">${range}</div>` : ""}</div>
     <button ${canNext ? "" : "disabled"} onclick="${fnName}(1)" aria-label="Next month">${chevronRight}</button>
   </div>`;
 }
@@ -1593,7 +1687,7 @@ $("#stmtFile").addEventListener("change", async (ev) => {
   const cur = currentYM();
   const byMonth = {};
   for (const t of tx) {
-    const ym = t.d.slice(0, 7);
+    const ym = bucketOf(t.d);
     if (ym > cur) continue; // ignore future-dated rows
     (byMonth[ym] = byMonth[ym] || []).push(t);
   }
@@ -2204,7 +2298,7 @@ window.openLoanSheet = (id) => {
         originalTotal: total > 0 ? total : 0, remainingBalance: balance, extraTotal: 0,
         startMonth: cur, appliedMonths: [], skippedMonths: []
       };
-      if (today().getDate() >= ddDay) loan.appliedMonths.push(cur);
+      if (today().toISOString().slice(0, 10) >= dueDateInBucket(cur, ddDay)) loan.appliedMonths.push(cur);
       state.loans.push(loan);
     }
     save(); render();
@@ -2351,6 +2445,162 @@ window.openAddToSavings = () => {
   }, { saveLabel: "Add" });
 };
 
+/* ---------- Search ---------- */
+// Case-insensitive substring search across every named thing in the app.
+// Recurring expenses are deduped to one instance per template: prefer the
+// current month's instance, else the soonest existing future one, else the
+// most recent past one — so a search doesn't show the same bill a dozen times.
+function searchAll(q) {
+  q = q.trim().toLowerCase();
+  const out = { expenses: [], loans: [], savings: [], investments: [], income: [], notes: [] };
+  if (!q) return out;
+  const cur = currentYM();
+  const byKey = new Map();
+  for (const ym of Object.keys(state.months)) {
+    for (const e of state.months[ym].expenses) {
+      const hay = [e.name, e.category, e.bank].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) continue;
+      const key = e.recurringId || (ym + ":" + e.id);
+      const existing = byKey.get(key);
+      if (!existing) { byKey.set(key, { ym, e }); continue; }
+      if (existing.ym === cur) continue;
+      const better = ym === cur || (ym >= cur && (existing.ym < cur || ym < existing.ym)) || (ym < cur && existing.ym < cur && ym > existing.ym);
+      if (better) byKey.set(key, { ym, e });
+    }
+  }
+  out.expenses = [...byKey.values()].sort((a, b) => a.e.name.localeCompare(b.e.name));
+  out.loans = state.loans.filter(l => l.name.toLowerCase().includes(q));
+  out.savings = state.savings.filter(s => s.name.toLowerCase().includes(q));
+  out.investments = state.investments.filter(i => i.name.toLowerCase().includes(q));
+  out.income = state.income.filter(i => i.title.toLowerCase().includes(q));
+  out.notes = (state.notes || []).filter(n => n.text.toLowerCase().includes(q));
+  return out;
+}
+function hl(text, q) {
+  const raw = String(text);
+  const i = q ? raw.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (i < 0) return esc(raw);
+  return esc(raw.slice(0, i)) + '<span class="sr-match">' + esc(raw.slice(i, i + q.length)) + '</span>' + esc(raw.slice(i + q.length));
+}
+function renderSearchResults(qRaw) {
+  const q = qRaw.trim();
+  const box = $("#searchResults");
+  if (!q) { box.innerHTML = `<div class="search-hint">Search for a payment, loan, card, savings pot, investment, income entry or note by name.</div>`; return; }
+  const r = searchAll(q);
+  const total = r.expenses.length + r.loans.length + r.savings.length + r.investments.length + r.income.length + r.notes.length;
+  if (!total) { box.innerHTML = `<div class="search-hint">No matches for "${esc(q)}".</div>`; return; }
+
+  const expRow = ({ ym, e }) => {
+    const mm = methodMeta(e.method);
+    return `<div class="row tappable" onclick="goToExpense('${ym}','${e.id}')">
+      ${avatar(e.name, null, "sm")}
+      <div class="row-main" style="margin-left:12px">
+        <div class="row-title">${hl(e.name, q)}</div>
+        <div class="row-sub">${mm.label}${e.bank ? " · " + esc(e.bank) : ""} · ${monthName(ym)}</div>
+      </div>
+      <div class="row-value num">${gbp.format(e.amount)}</div>
+      <div class="chevron">${chevronSmall}</div>
+    </div>`;
+  };
+  const loanRow = l => `<div class="row tappable" onclick="goToLoan('${l.id}')">
+    ${avatar(l.name, null, "sm")}
+    <div class="row-main" style="margin-left:12px">
+      <div class="row-title">${hl(l.name, q)}</div>
+      <div class="row-sub">${l.type === "card" ? "Credit card" : "Loan"}</div>
+    </div>
+    <div class="row-value num">${gbp.format(l.remainingBalance)}</div>
+    <div class="chevron">${chevronSmall}</div>
+  </div>`;
+  const investRow = kind => e => `<div class="row tappable" onclick="goToInvest('${kind}','${e.id}')">
+    ${avatar(e.name, null, "sm")}
+    <div class="row-main" style="margin-left:12px">
+      <div class="row-title">${hl(e.name, q)}</div>
+      ${e.note ? `<div class="row-sub">${esc(e.note)}</div>` : ""}
+    </div>
+    <div class="row-value num">${gbp.format(e.value)}</div>
+    <div class="chevron">${chevronSmall}</div>
+  </div>`;
+  const incRow = i => `<div class="row tappable" onclick="goToIncome('${i.id}')">
+    ${avatar(i.title, null, "sm")}
+    <div class="row-main" style="margin-left:12px">
+      <div class="row-title">${hl(i.title, q)}</div>
+      <div class="row-sub">${i.status === "paid" ? "Received" : "Freelance income"}</div>
+    </div>
+    <div class="row-value num">${gbp.format(i.amount)}</div>
+    <div class="chevron">${chevronSmall}</div>
+  </div>`;
+  const noteRow = n => `<div class="row tappable" onclick="goToNote('${n.id}')">
+    <div class="row-main">
+      <div class="row-title">${hl(n.text, q)}</div>
+      ${n.due ? `<div class="row-sub">Due ${fmtDate(n.due)}</div>` : ""}
+    </div>
+    <div class="chevron">${chevronSmall}</div>
+  </div>`;
+
+  const section = (label, rows) => rows.length ? `<div class="sr-group-label">${label}</div><div class="card">${rows.join("")}</div>` : "";
+  box.innerHTML = [
+    section("Expenses", r.expenses.map(expRow)),
+    section("Loans & Cards", r.loans.map(loanRow)),
+    section("Savings", r.savings.map(investRow("savings"))),
+    section("Investments", r.investments.map(investRow("investments"))),
+    section("Income", r.income.map(incRow)),
+    section("Finance Notes", r.notes.map(noteRow))
+  ].join("");
+}
+window.goToExpense = (ym, id) => {
+  closeSearch();
+  expYM = ym;
+  switchTab("expenses");
+  setTimeout(() => openExpenseSheet(id), 260);
+};
+window.goToLoan = (id) => {
+  closeSearch();
+  switchTab("loans");
+  setTimeout(() => openLoanSheet(id), 260);
+};
+window.goToInvest = (kind, id) => {
+  closeSearch();
+  switchTab("invest");
+  setTimeout(() => openInvestSheet(kind, id), 260);
+};
+window.goToIncome = (id) => {
+  closeSearch();
+  const i = state.income.find(x => x.id === id);
+  expYM = (i && bucketOf(i.paidDate || i.expectedDate)) || currentYM();
+  switchTab("expenses");
+  setTimeout(() => openIncomeSheet(id), 260);
+};
+window.goToNote = (id) => {
+  closeSearch();
+  switchTab("home");
+  setTimeout(() => openNoteSheet(id), 260);
+};
+function openSearch() {
+  $("#searchOverlay").classList.add("show");
+  document.body.classList.add("locked");
+  $("#searchInput").value = "";
+  $("#searchClearBtn").classList.add("hidden");
+  renderSearchResults("");
+  setTimeout(() => $("#searchInput").focus({ preventScroll: true }), 260);
+}
+window.closeSearch = () => {
+  $("#searchOverlay").classList.remove("show");
+  document.body.classList.remove("locked");
+  $("#searchInput").blur();
+};
+$("#hdrSearch").addEventListener("click", openSearch);
+$("#searchCancelBtn").addEventListener("click", closeSearch);
+$("#searchInput").addEventListener("input", ev => {
+  $("#searchClearBtn").classList.toggle("hidden", !ev.target.value);
+  renderSearchResults(ev.target.value);
+});
+$("#searchClearBtn").addEventListener("click", () => {
+  $("#searchInput").value = "";
+  $("#searchClearBtn").classList.add("hidden");
+  renderSearchResults("");
+  $("#searchInput").focus();
+});
+
 /* ---------- Settings ---------- */
 window.openSettings = () => {
   const s = state.settings;
@@ -2362,6 +2612,12 @@ window.openSettings = () => {
       ${fAmount("st-save", "Savings target", s.savingsTarget || "")}
     </div>
     <div class="form-hint">Set your <b>salary</b> on the Expenses tab (tap the Salary row). The spending plan and savings target track how you're doing.</div>
+
+    <div class="section-header">Month cycle</div>
+    <div class="form-group">
+      <div class="form-row"><label for="st-cycle">Month starts on day</label><input type="number" id="st-cycle" inputmode="numeric" min="1" max="28" step="1" value="${s.payCycleDay || 1}"></div>
+    </div>
+    <div class="form-hint">Leave as <b>1</b> for a normal calendar month. If your salary lands on, say, the 28th, set this to <b>28</b> so "this month" runs payday-to-payday instead of 1st-to-1st — bills, income and the month you're viewing all shift to match.</div>
 
     <div class="section-header">Banks</div>
     <div class="form-group">
@@ -2381,11 +2637,13 @@ window.openSettings = () => {
     <div class="footer-note" style="padding-top:8px">Finance Health · £ GBP</div>
   `, () => {
     const banks = val("st-banks").split(",").map(b => b.trim()).filter(Boolean);
+    const cycleDay = Math.min(28, Math.max(1, parseInt(val("st-cycle"), 10) || 1));
     state.settings = {
       ...state.settings,
       spendingPlan: num("st-spend"),
       savingsTarget: num("st-save"),
-      banks: banks.length ? banks : [...DEFAULT_BANKS]
+      banks: banks.length ? banks : [...DEFAULT_BANKS],
+      payCycleDay: cycleDay
     };
     // keep the current month's plan snapshot in sync
     const m = monthData(currentYM());
