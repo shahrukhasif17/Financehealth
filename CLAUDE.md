@@ -36,7 +36,10 @@ iPhone via Safari's **Add to Home Screen**. Currency is **£ GBP** (`£1,250.50`
 ## Data model
 
 All data is one JSON blob in `localStorage` under the key **`financeHealth_v1`**.
-Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index.html`):
+Every mutation calls `save()` immediately, which also rolls a two-slot undo history
+(`financeHealth_v1_prev`/`_prev2`, previous two saved states) — surfaced in Settings as
+"Undo last change (auto snapshot)" via `restoreAutoSnapshot()`. Shape (see `defaultState()`
+in `index.html`):
 
 - `settings` — `spendingPlan`, `savingsTarget`, `expectedFreelance`, `salary` (monthly £
   figures; `salary` is set from the Expenses tab's Salary row via `openSalarySheet()`,
@@ -108,8 +111,10 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
    creating any missing months and instantiating recurring templates (respecting
    `startMonth`/`endMonth`). Handles the app not being opened for several months.
    It also **re-syncs months planned ahead** (keys > current): fills in templates
-   created after the future month was made, and prunes *unpaid* instances whose
-   template was stopped or now ends earlier. Past/current months are never pruned.
+   created after the future month was made. It deliberately **never prunes/deletes**
+   existing expenses in any month, past or future — a prior bug that auto-removed
+   "orphaned" recurring instances caused real data loss, so removal is manual-only
+   (the user deleting a row) from here on.
 2. **`processLoans()`** — for each loan, for each month since `startMonth` whose DD day
    has passed, not already in `appliedMonths`/`skippedMonths` and not past the loan's end
    date, reduces the balance and records the month. Idempotent by construction.
@@ -145,6 +150,16 @@ installment expiry without waiting.
   recurring bills) when navigated to via the ‹ › arrows, so you can plan ahead before
   payday. A "Planning ahead" hint shows on future months.
 - Escape all user strings with `esc()` when building HTML.
+- **Search** (`#hdrSearch` magnifying-glass button in the header, next to the gear) opens
+  a full-screen `#searchOverlay` — not a 6th tab, to keep the tab bar at 5. `searchAll(q)`
+  case-insensitive substring-matches across expenses (all months, name/category/bank),
+  loans/cards, savings, investments, income and notes; recurring expenses are deduped to
+  one row per template (current month wins, else soonest existing future month, else most
+  recent past month) so a repeating bill doesn't show once per month. Results render
+  grouped by type via `renderSearchResults()` with the match substring wrapped in
+  `.sr-match`; tapping a row (`goToExpense`/`goToLoan`/`goToInvest`/`goToIncome`/`goToNote`)
+  closes the overlay, switches to the owning tab (setting `expYM` to the right month for
+  expenses/income), and opens the normal edit sheet for that item.
 
 ## Deployment
 
