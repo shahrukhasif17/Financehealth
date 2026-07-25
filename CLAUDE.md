@@ -84,7 +84,15 @@ in `index.html`):
   never rewritten. An expense saved with Recurring on but **no `recurringId`** (old
   per-month data, or a lost link) gets a fresh template AND adopts same-named unpaid,
   unlinked copies in this + later months (matched case-insensitively on the *pre-edit*
-  name), linking them so future edits sync too.
+  name), linking them so future edits sync too. **Deleting** a recurring expense also
+  removes its *unpaid* copies in later months (matched by template link, or by name when
+  unlinked); paid rows and past months always survive. **"Set as default for future
+  months"** (`makeMonthDefault()`, button at the bottom of the Expenses list): rebuilds
+  `recurring[]` from the viewed month's non-"Extra" payments and makes every later
+  existing month mirror them — later months' unpaid regular rows are replaced, paid rows
+  are kept (relinked by name to avoid duplicates) and "Extra"-category rows are kept.
+  This is the user's "default payments" mental model: Regular = the standard monthly
+  set, Extra = one-offs that never replicate.
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.

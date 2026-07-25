@@ -1561,7 +1561,8 @@ function renderExpenses() {
       : emptyState(emptyIcon, "No expenses yet",
           readOnly ? "Nothing was recorded for this month." : "Add your bills and outgoings for this month. Recurring ones roll over automatically.",
           readOnly ? null : "Add Expense", "openExpenseSheet()")}
-    ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>` : ""}
+    ${!readOnly && m.expenses.length ? `<button class="btn primary add-fab" onclick="openExpenseSheet()">＋ Add Expense</button>
+      <button class="btn tinted" style="margin-top:8px" onclick="makeMonthDefault()">Set as default for future months</button>` : ""}
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
   hydrateCounts("view-expenses");
@@ -2300,13 +2301,62 @@ window.deleteExpense = async (id) => {
   if (!e) return;
   closeSheet();
   const msg = e.recurring
-    ? `“${e.name}” is recurring. Deleting removes it from this month and stops it appearing in future months. Past months keep their history.`
+    ? `“${e.name}” is recurring. Deleting removes it from this and all later months (unpaid copies). Past months keep their history.`
     : `Delete “${e.name}” from ${monthName(expYM)}?`;
   if (await confirmDialog("Delete expense?", msg)) {
     if (e.recurringId) state.recurring = state.recurring.filter(t => t.id !== e.recurringId);
     m.expenses = m.expenses.filter(x => x.id !== id);
+    // A recurring bill's unpaid copies in later, already-created months go
+    // too — deleting in August must also clear September. Matched by template
+    // link, or by name when the copy was never linked (old per-month data).
+    if (e.recurring || e.recurringId) {
+      const nm = e.name.trim().toLowerCase();
+      for (const k of Object.keys(state.months)) {
+        if (k <= expYM) continue;
+        state.months[k].expenses = state.months[k].expenses.filter(x =>
+          x.paid || !(x.recurringId === e.recurringId && e.recurringId ||
+                      !x.recurringId && x.name.trim().toLowerCase() === nm));
+      }
+    }
     save(); render();
   }
+};
+
+// "Use this month as my default": rebuilds the recurring templates from the
+// viewed month's Regular payments and makes every later existing month mirror
+// them. Paid rows and "Extra"-category one-offs in later months are kept.
+window.makeMonthDefault = async () => {
+  const ym = expYM;
+  const m = monthData(ym);
+  const base = m.expenses.filter(e => (e.category || "Regular") !== "Extra");
+  if (!base.length) return;
+  const ok = await confirmDialog("Set as default month?",
+    `${monthName(ym)}'s ${base.length} regular payments become the standard set for every later month. Later months are updated to match — their unpaid regular payments are replaced, while paid ones and “Extra” payments are kept.`, "Set Default");
+  if (!ok) return;
+  const oldByName = {};
+  for (const t of state.recurring) oldByName[t.name.trim().toLowerCase()] = t;
+  state.recurring = base.map(e => {
+    const prev = oldByName[e.name.trim().toLowerCase()];
+    const t = { id: uid(), name: e.name, amount: e.amount, dueDay: e.dueDay || null,
+      startMonth: ym, endMonth: prev ? prev.endMonth || null : null,
+      method: e.method, category: e.category || "Regular", bank: e.bank || null };
+    e.recurring = true; e.recurringId = t.id;
+    return t;
+  });
+  const tByName = {};
+  for (const t of state.recurring) tByName[t.name.trim().toLowerCase()] = t;
+  for (const k of Object.keys(state.months)) {
+    if (k <= ym) continue;
+    const mo = state.months[k];
+    mo.expenses = mo.expenses.filter(e => e.paid || (e.category || "Regular") === "Extra");
+    // Relink kept paid rows by name so fillRecurring doesn't add a duplicate.
+    for (const e of mo.expenses) {
+      const t = tByName[e.name.trim().toLowerCase()];
+      if (t && e.paid) { e.recurring = true; e.recurringId = t.id; }
+    }
+    fillRecurring(k);
+  }
+  save(); render();
 };
 
 /* ---------- Loan sheet ---------- */
@@ -2794,6 +2844,10 @@ document.addEventListener("visibilitychange", () => {
 
 load();
 runEngine();
+// The month vars were initialised while the script was still parsing, BEFORE
+// load() read the saved settings — so a non-default payCycleDay wasn't applied
+// and the app opened on the wrong (plain-calendar) month. Recompute now.
+homeYM = expYM = txYM = currentYM();
 switchTab("home");
 
 // Splash: show briefly on cold start, then fade out
