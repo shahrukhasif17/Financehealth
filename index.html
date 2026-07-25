@@ -726,12 +726,12 @@ const ymOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0"
 // ymOf, but if payCycleDay is set (e.g. salary lands on the 28th), a date
 // before that day in the calendar month belongs to the PREVIOUS bucket, so
 // "this month" runs payday-to-payday instead of 1st-to-1st.
-function cycleYMOf(d) {
-  const cd = (state && state.settings.payCycleDay) || 1;
+function cycleYMOfFor(d, cd) {
   let y = d.getFullYear(), m = d.getMonth();
   if (d.getDate() < cd) { m -= 1; if (m < 0) { m = 11; y--; } }
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
+function cycleYMOf(d) { return cycleYMOfFor(d, (state && state.settings.payCycleDay) || 1); }
 // Bucket an ISO "YYYY-MM-DD" date string (income/transaction dates) the same way.
 function bucketOf(dateStr) { return dateStr ? cycleYMOf(new Date(dateStr + "T12:00:00")) : null; }
 const currentYM = () => cycleYMOf(today());
@@ -739,13 +739,13 @@ const currentYM = () => cycleYMOf(today());
 // if it falls before payCycleDay it's actually in the bucket's *second*
 // calendar month (e.g. cycle day 25, dueDay 5 → the 5th of the month after
 // the bucket's label month). Returns the real "YYYY-MM-DD" it lands on.
-function dueDateInBucket(ym, day) {
-  const cd = (state && state.settings.payCycleDay) || 1;
+function dueDateInBucketFor(ym, day, cd) {
   const [y, m] = ym.split("-").map(Number);
   const offset = day >= cd ? 0 : 1;
   const d = new Date(y, m - 1 + offset, day);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function dueDateInBucket(ym, day) { return dueDateInBucketFor(ym, day, (state && state.settings.payCycleDay) || 1); }
 function ymAdd(ym, n) {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + n, 1);
@@ -872,6 +872,43 @@ function newMonth() {
     savingsAdded: 0,
     plan: planSnapshot()
   };
+}
+
+// One-shot migration: when the user changes payCycleDay, every existing bill
+// with a dueDay is potentially in the wrong month bucket (buckets used to
+// mean 1st-to-1st, now they mean cycle-day-to-cycle-day). We compute each
+// expense's REAL calendar date under the OLD cycle, then re-bucket it under
+// the NEW cycle. Paid AND unpaid bills both move — the user asked for this
+// because their existing bills are their standard recurring set, not
+// month-specific extras. Also shifts loan appliedMonths/skippedMonths/
+// startMonth so processLoans doesn't double-apply.
+function migrateCycleShift(oldCd, newCd) {
+  if (oldCd === newCd) return 0;
+  let moved = 0;
+  const shiftBucket = (bkt, day) => {
+    const realIso = dueDateInBucketFor(bkt, day, oldCd);
+    return cycleYMOfFor(new Date(realIso + "T12:00:00"), newCd);
+  };
+  for (const ym of Object.keys(state.months)) {
+    const m = state.months[ym];
+    const stay = [];
+    for (const e of m.expenses) {
+      if (!e.dueDay) { stay.push(e); continue; }
+      const newYm = shiftBucket(ym, e.dueDay);
+      if (newYm === ym) { stay.push(e); continue; }
+      if (!state.months[newYm]) state.months[newYm] = newMonth();
+      state.months[newYm].expenses.push(e);
+      moved++;
+    }
+    m.expenses = stay;
+  }
+  for (const loan of state.loans) {
+    const day = loan.ddDay || 1;
+    loan.appliedMonths = (loan.appliedMonths || []).map(b => shiftBucket(b, day));
+    loan.skippedMonths = (loan.skippedMonths || []).map(b => shiftBucket(b, day));
+    if (loan.startMonth) loan.startMonth = shiftBucket(loan.startMonth, day);
+  }
+  return moved;
 }
 
 // Instantiate recurring templates that are active in month ym and not yet present.
@@ -2635,9 +2672,10 @@ window.openSettings = () => {
     <div class="form-hint">Everything lives on this device only. Export a backup now and then and save it to <b>Google Drive or iCloud Drive</b> from the share sheet — especially before removing the app from your home screen. The app reminds you monthly.</div>
 
     <div class="footer-note" style="padding-top:8px">Finance Health · £ GBP</div>
-  `, () => {
+  `, async () => {
     const banks = val("st-banks").split(",").map(b => b.trim()).filter(Boolean);
     const cycleDay = Math.min(28, Math.max(1, parseInt(val("st-cycle"), 10) || 1));
+    const oldCd = state.settings.payCycleDay || 1;
     state.settings = {
       ...state.settings,
       spendingPlan: num("st-spend"),
@@ -2648,7 +2686,23 @@ window.openSettings = () => {
     // keep the current month's plan snapshot in sync
     const m = monthData(currentYM());
     if (m) m.plan = planSnapshot();
-    save(); render();
+    save();
+    if (cycleDay !== oldCd) {
+      closeSheet();
+      const ok = await confirmDialog(
+        "Move existing bills to match?",
+        `Your month now runs from day ${cycleDay} to day ${cycleDay - 1 || 31}. Move every bill (paid and unpaid) into the cycle its actual date falls in? If you decline, existing bills stay where they were — only brand-new ones use the new cycle.`,
+        "Move bills", "bold"
+      );
+      if (ok) {
+        const moved = migrateCycleShift(oldCd, cycleDay);
+        save();
+        showAlert("Done", moved ? `Moved ${moved} bill${moved === 1 ? "" : "s"} into the right cycle. If this wasn't right, tap Settings → “Undo last change” to restore.` : "Nothing needed moving.", [{ label: "OK", style: "bold", value: true }]);
+      }
+      render();
+      return false; // sheet already closed
+    }
+    render();
   });
 };
 window.exportBackup = async () => {
