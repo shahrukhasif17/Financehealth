@@ -138,4 +138,6 @@ installment expiry without waiting.
 ## Deployment
 
 Push to the default branch and serve via GitHub Pages (root). After changing any cached
-asset, bump the `CACHE` constant in `sw.js` or iOS will keep serving the old version.
+asset, bump the `CACHE` constant in `sw.js`. `sw.js` is **network-first for the page**
+(navigations/documents) so updates appear on the next online open, and cache-first for
+other assets with an offline fallback — this avoids the stale-PWA problem.

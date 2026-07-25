@@ -1,5 +1,7 @@
-/* Finance Health — service worker. Cache-first app shell for offline use. */
-const CACHE = "finance-health-v17";
+/* Finance Health — service worker.
+   Network-first for the page itself (so updates show immediately when online),
+   cache-first for other assets, with an offline fallback throughout. */
+const CACHE = "finance-health-v18";
 const ASSETS = [
   "./",
   "./index.html",
@@ -22,20 +24,34 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Cache-first, falling back to network; successful network responses refresh the cache.
+function cachePut(req, res) {
+  if (res && res.ok && new URL(req.url).origin === location.origin) {
+    const copy = res.clone();
+    caches.open(CACHE).then((cache) => cache.put(req, copy));
+  }
+  return res;
+}
+
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const isPage = req.mode === "navigate" || req.destination === "document";
+
+  if (isPage) {
+    // Network-first: always try to load the freshest app when online, so
+    // updates appear on the next open; fall back to the cached copy offline.
+    event.respondWith(
+      fetch(req)
+        .then((res) => cachePut(req, res))
+        .catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Cache-first for everything else (icons, manifest), refreshing in the background.
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cached) => {
-      const fetched = fetch(event.request)
-        .then((response) => {
-          if (response.ok && new URL(event.request.url).origin === location.origin) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
+    caches.match(req, { ignoreSearch: true }).then((cached) => {
+      const fetched = fetch(req).then((res) => cachePut(req, res)).catch(() => cached);
       return cached || fetched;
     })
   );
