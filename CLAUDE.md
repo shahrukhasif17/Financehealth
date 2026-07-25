@@ -39,7 +39,10 @@ All data is one JSON blob in `localStorage` under the key **`financeHealth_v1`**
 Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index.html`):
 
 - `settings` — `spendingPlan`, `savingsTarget`, `expectedFreelance`, `salary` (monthly £
-  figures), `banks[]` (user's bank names, default Monzo/Barclays/Halifax/Tesco),
+  figures; `salary` is set from the Expenses tab's Salary row via `openSalarySheet()`,
+  which writes `plan.salary` for that month and every later existing month and updates
+  `settings.salary` so new months inherit it — Settings no longer edits salary),
+  `banks[]` (user's bank names, default Monzo/Barclays/Halifax/Tesco),
   `hideRemaining` (privacy toggle for the "Remaining this month" card, which shows
   salary + freelance received − expenses paid on Home and Expenses — deliberately NOT
   minus loan payments or savings, so it reconciles with the Income/Expenses shown).
