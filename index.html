@@ -1185,7 +1185,7 @@ function renderHome() {
     const overdue = isOverdue(e, ym);
     const mm = methodMeta(e.method);
     return `<div class="xrow">
-      ${avatar(e.name, methodColor(e.method), "sm")}
+      ${avatar(e.name, null, "sm")}
       <div class="x-main" style="margin-left:10px">
         <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
         <div class="x-sub">${mm.label}${e.bank ? " · " + esc(e.bank) : ""}</div>
@@ -1366,7 +1366,7 @@ function renderExpenses() {
       tmplE && tmplE.endMonth ? `<span class="cat-extra">Ends ${monthShort(tmplE.endMonth).slice(0, 3)}${tmplE.endMonth.slice(0, 4) !== ym.slice(0, 4) ? " " + tmplE.endMonth.slice(2, 4) : ""}</span>` : null
     ].filter(Boolean).join(" · ");
     return `<div class="xrow">
-      ${avatar(e.name, methodColor(e.method), "sm")}
+      ${avatar(e.name, null, "sm")}
       <div class="x-main" style="margin-left:10px">
         <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
         <div class="x-sub">${bits}</div>
@@ -2055,6 +2055,20 @@ function saveExpenseForm(e) {
     } else if (rec && e.recurringId) { // keep template in sync for future months
       const t = state.recurring.find(t => t.id === e.recurringId);
       if (t) { t.name = name; t.amount = amount; t.dueDay = dueDay; t.method = method; t.category = category; t.bank = bank; t.endMonth = endMonth; }
+      // Also push the correction into this month and every later month that
+      // already exists — otherwise a fix (e.g. wrong amount, wrong payment
+      // type) would only apply to brand-new months, not ones already created.
+      // Unpaid instances only: a month you've already reconciled as paid
+      // keeps its actual recorded figures.
+      for (const ym of Object.keys(state.months)) {
+        if (ym < expYM) continue;
+        for (const sib of state.months[ym].expenses) {
+          if (sib.recurringId === e.recurringId && sib.id !== e.id && !sib.paid) {
+            sib.name = name; sib.amount = amount; sib.dueDay = dueDay;
+            sib.method = method; sib.category = category; sib.bank = bank;
+          }
+        }
+      }
     }
   } else {
     const ex = { id: uid(), name, amount, dueDay, paid: false, recurring: rec, recurringId: null, method, category, bank };

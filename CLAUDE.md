@@ -60,14 +60,22 @@ Every mutation calls `save()` immediately. Shape (see `defaultState()` in `index
 - Every expense (and template) carries **`method`** (`"dd"` direct debit | `"so"`
   standing order | `"manual"`), **`category`** (`"Regular"` | `"Extra"` | free-text
   custom) and optional **`bank`**. `migrate()` in `load()` backfills them on old data.
-  Compact rows: coloured `ddbar` (lime=dd, teal=so, none=manual), due day as a minimal
-  2-digit number beside the name, colour-coded method/category labels, checkbox on the
-  right, 3-dot `actionSheet` menu per row; "Save & Add Another" bulk-add remembers the
-  last method/category/bank. Standing order (`method:"so"`) is just another payment type
-  alongside dd/manual — it shows in the normal expenses list (teal bar), NOT a separate
-  section. Filtering is a single **Filter menu** (`openExpenseFilter()`, a grouped sheet:
+  Compact rows: a per-**name**-hashed `avatar()` circle (`avatarColor()`, 7-colour
+  categorical palette) gives each payment a distinct, memorable identity so similarly
+  styled items (e.g. two manual bank transfers) are easy to tell apart at a glance;
+  payment method is conveyed separately via colour-coded label text (`mm-dd`/`mm-so`/
+  `mm-man`), due day as a minimal 2-digit number beside the name, checkbox on the right,
+  3-dot `actionSheet` menu per row; "Save & Add Another" bulk-add remembers the last
+  method/category/bank. Standing order (`method:"so"`) is just another payment type
+  alongside dd/manual — it shows in the normal expenses list, NOT a separate section.
+  Filtering is a single **Filter menu** (`openExpenseFilter()`, a grouped sheet:
   Payment type incl. Standing Order when present / Category / Bank) driving `expFilter`,
-  shown via a "Filter: X ▾" button — no chip strip.
+  shown via a "Filter: X ▾" button — no chip strip. **Editing a recurring expense**
+  propagates the changed fields (name/amount/dueDay/method/category/bank) into every
+  *unpaid* sibling instance from the edited month forward (already-created future
+  months included, not just the template) — mirrors the "changes apply from here
+  forward, history stays put" rule used for salary. Paid instances and past months are
+  never rewritten.
 - `recurring[]` templates carry an optional `endMonth` — set via the expense form's
   "Ends on" date (shown when Recurring is on) so finite payments (installments with a
   few payments left) stop automatically.
