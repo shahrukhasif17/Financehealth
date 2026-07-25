@@ -775,6 +775,20 @@ function ensureMonths() {
     fillRecurring(ym);
     ym = ymAdd(ym, 1);
   }
+  // Months planned ahead must stay in sync with the recurring templates:
+  // recurring bills added AFTER a future month was created are filled in,
+  // and unpaid instances whose template was stopped (or now ends earlier)
+  // are removed. Past/current months are never pruned — history is history.
+  for (const fym of Object.keys(state.months)) {
+    if (fym <= cur) continue;
+    fillRecurring(fym);
+    const month = state.months[fym];
+    month.expenses = month.expenses.filter(e => {
+      if (!e.recurringId || e.paid) return true;
+      const t = state.recurring.find(t => t.id === e.recurringId);
+      return !!t && t.startMonth <= fym && (!t.endMonth || fym <= t.endMonth);
+    });
+  }
 }
 
 // Apply direct-debit loan payments for every elapsed DD day. Idempotent:
@@ -1278,10 +1292,12 @@ function renderExpenses() {
     const overdue = isOverdue(e, ym);
     const cat = e.category || "Regular";
     const mm = methodMeta(e.method);
+    const tmplE = e.recurringId ? state.recurring.find(t => t.id === e.recurringId) : null;
     const bits = [
       `<span class="${mm.cls}">${mm.label}</span>`,
       cat === "Regular" ? null : `<span class="${cat === "Extra" ? "cat-extra" : "cat-custom"}">${esc(cat)}</span>`,
-      e.bank ? `<span>${esc(e.bank)}</span>` : null
+      e.bank ? `<span>${esc(e.bank)}</span>` : null,
+      tmplE && tmplE.endMonth ? `<span class="cat-extra">Ends ${monthShort(tmplE.endMonth).slice(0, 3)}${tmplE.endMonth.slice(0, 4) !== ym.slice(0, 4) ? " " + tmplE.endMonth.slice(2, 4) : ""}</span>` : null
     ].filter(Boolean).join(" · ");
     return `<div class="xrow">
       ${avatar(e.name, methodColor(e.method), "sm")}
@@ -1940,7 +1956,7 @@ function invalid(id, msg) { showAlert("Missing information", msg, [{ label: "OK"
 
 /* ---------- Expense sheet ---------- */
 // Remembered between "Save & Add Another" rounds so bulk entry is fast.
-let expDefaults = { method: "dd", category: "Regular", bankDD: "", bankSO: "", bankMan: "" };
+let expDefaults = { method: "dd", category: "Regular", bankDD: "", bankSO: "", bankMan: "", rec: false };
 const bankKeyFor = m => m === "dd" ? "bankDD" : m === "so" ? "bankSO" : "bankMan";
 
 function saveExpenseForm(e) {
@@ -1958,6 +1974,7 @@ function saveExpenseForm(e) {
   const endVal = val("fx-end");
   const endMonth = (rec && endVal) ? endVal.slice(0, 7) : null;
   expDefaults = { ...expDefaults, method, category, [bankKeyFor(method)]: bank || "" };
+  if (!e) expDefaults.rec = rec; // bulk entry keeps the Recurring toggle as-is
   if (e) {
     e.name = name; e.amount = amount; e.dueDay = dueDay; e.paid = checked("fx-paid");
     e.method = method; e.category = category; e.bank = bank;
@@ -2014,11 +2031,11 @@ window.openExpenseSheet = (id, presetMethod) => {
       ], isCustomCat ? category : category)}
       <div id="fx-cat-custom-row" class="hidden">${fText("fx-cat-custom", "Custom name", "", "e.g. Subscriptions")}</div>
       ${fSelect("fx-bank", "Bank", [{ value: "", label: "None" }, ...bankList.map(b => ({ value: b, label: b }))], bank)}
-      ${fSwitch("fx-rec", "Recurring monthly", e?.recurring)}
-      <div id="fx-end-row" class="${e?.recurring ? "" : "hidden"}">${fDate("fx-end", "Ends on (last payment)", endVal)}</div>
+      ${fSwitch("fx-rec", "Recurring monthly", e ? e.recurring : expDefaults.rec)}
+      <div id="fx-end-row" class="${(e ? e.recurring : expDefaults.rec) ? "" : "hidden"}">${fDate("fx-end", "Ends on (last payment)", endVal)}</div>
       ${e ? fSwitch("fx-paid", "Paid", e.paid) : ""}
     </div>
-    <div class="form-hint">Recurring expenses appear automatically in every new month, unticked. Set an "Ends on" date for finite payments (e.g. an installment with only a few left) — otherwise it repeats indefinitely.</div>
+    <div class="form-hint">Recurring expenses appear automatically in every new month, unticked. <b>Leave "Ends on" blank for ongoing bills</b> — only set it for finite payments (e.g. an installment with a few left), and the row will show when it ends.</div>
     ${e ? "" : `<button class="btn tinted" style="margin-bottom:8px" onclick="saveExpenseAndNext()">Save &amp; Add Another</button>`}
     ${e ? deleteBtn(`deleteExpense('${e.id}')`) : ""}
   `, () => saveExpenseForm(e));
@@ -2276,7 +2293,7 @@ window.openSettings = () => {
       <div class="form-row tappable" style="cursor:pointer" onclick="exportBackup()"><label style="color:var(--accent-text)">Export a backup</label>${chev}</div>
       <div class="form-row tappable" style="cursor:pointer" onclick="importBackup()"><label style="color:var(--accent-text)">Restore from backup</label>${chev}</div>
     </div>
-    <div class="form-hint">Everything lives on this device only. Export a JSON backup now and then — especially before removing the app from your home screen.</div>
+    <div class="form-hint">Everything lives on this device only. Export a backup now and then and save it to <b>iCloud Drive or Google Drive</b> from the share sheet — especially before removing the app from your home screen.</div>
 
     <div class="footer-note" style="padding-top:8px">Finance Health · £ GBP</div>
   `, () => {
