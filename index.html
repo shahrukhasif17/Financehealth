@@ -316,6 +316,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .filter-btn .fb-val { color: var(--accent-text); }
 .filter-btn svg { width: 12px; height: 12px; opacity: 0.6; }
 .filter-clear { padding: 8px 12px; border-radius: 999px; background: var(--fill); color: var(--text-2); font-size: 13px; font-weight: 600; margin-left: 8px; }
+/* Inline month search: stays in place, list filters live below it */
+.exp-search { flex: 1; min-width: 0; margin-left: 8px; background: var(--fill); border: none; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 16px; color: var(--text); outline: none; -webkit-appearance: none; }
+.exp-search::placeholder { color: var(--text-3); }
 /* filter sheet rows */
 .fltrow { display: flex; align-items: center; padding: 13px 14px; position: relative; cursor: pointer; }
 .fltrow:not(:last-child)::after { content: ""; position: absolute; left: 14px; right: 0; bottom: 0; border-bottom: 0.5px solid var(--separator); }
@@ -1330,7 +1333,7 @@ function renderHome() {
   const upRow = e => {
     const overdue = isOverdue(e, ym);
     const mm = methodMeta(e.method);
-    return `<div class="xrow">
+    return `<div class="xrow" data-s="${esc([e.name, e.category, e.bank].filter(Boolean).join(" ").toLowerCase())}">
       ${avatar(e.name, null, "sm")}
       <div class="x-main" style="margin-left:10px">
         <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
@@ -1418,6 +1421,14 @@ window.deleteNote = async (id) => {
 
 /* ---------- Expenses ---------- */
 let expFilter = "all"; // 'all' | 'dd' | 'manual' | category name
+let expSearch = ""; // inline search over the viewed month's expense rows
+// Filters rows in place (no re-render) so the keyboard stays up and the
+// search bar doesn't move — matching rows simply remain below it.
+function applyExpSearch() {
+  const q = expSearch.trim().toLowerCase();
+  $$("#view-expenses .xrow[data-s]").forEach(r => r.classList.toggle("hidden", !!q && !r.dataset.s.includes(q)));
+}
+window.expSearchChange = v => { expSearch = v; applyExpSearch(); };
 const MONTHS_AHEAD = 12; // how far ahead you can plan
 // Navigate months. Backward only to the earliest known month; forward up to
 // MONTHS_AHEAD so you can set up future months before payday.
@@ -1511,7 +1522,7 @@ function renderExpenses() {
       e.bank ? `<span>${esc(e.bank)}</span>` : null,
       tmplE && tmplE.endMonth ? `<span class="cat-extra">Ends ${monthShort(tmplE.endMonth).slice(0, 3)}${tmplE.endMonth.slice(0, 4) !== ym.slice(0, 4) ? " " + tmplE.endMonth.slice(2, 4) : ""}</span>` : null
     ].filter(Boolean).join(" · ");
-    return `<div class="xrow">
+    return `<div class="xrow" data-s="${esc([e.name, e.category, e.bank].filter(Boolean).join(" ").toLowerCase())}">
       ${avatar(e.name, null, "sm")}
       <div class="x-main" style="margin-left:10px">
         <div class="x-name" style="${overdue ? "color:var(--red)" : ""}">${esc(e.name)}${e.dueDay ? `<span class="x-due num">${String(e.dueDay).padStart(2, "0")}</span>` : ""}${overdue ? '<span class="badge red">Overdue</span>' : ""}</div>
@@ -1555,7 +1566,7 @@ function renderExpenses() {
     ${m.expenses.length ? `<div style="margin-bottom:12px;display:flex;align-items:center">
         <button class="filter-btn" onclick="openExpenseFilter()">Filter: <span class="fb-val">${esc(filterLabel(expFilter))}</span> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         ${expFilter !== "all" ? `<button class="filter-clear" onclick="setExpFilter('all')">Clear</button>` : ""}
-        <button class="filter-btn" style="margin-left:auto" onclick="openSearch()" aria-label="Search payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:1"><circle cx="11" cy="11" r="7.2"/><path d="M20.5 20.5 16 16"/></svg> Search</button>
+        <input type="search" class="exp-search" placeholder="Search this month" value="${esc(expSearch)}" oninput="expSearchChange(this.value)" autocomplete="off">
       </div>` : ""}
     ${m.expenses.length
       ? (list.length
@@ -1570,6 +1581,7 @@ function renderExpenses() {
     ${readOnly ? `<div class="footer-note">Past month — read-only history</div>` : ""}
   `;
   hydrateCounts("view-expenses");
+  applyExpSearch(); // keep the inline search filter across re-renders
 }
 
 /* Filter menu — one place for every filter option */
