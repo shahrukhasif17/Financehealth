@@ -149,6 +149,19 @@ Deliberately **left on the plain calendar** despite the cycle setting: a loan/ca
 meaning "ends around this month") — reinterpreting those through the cycle would add
 risk for no real benefit, since "ends in March" is close enough without day-precision.
 
+**Cycle-change migration** (`migrateCycleShift(oldCd, newCd)`): changing `payCycleDay`
+in Settings only relabels how buckets are computed going forward — existing bills stay
+in whatever bucket they were originally instantiated into (e.g. 1 Jul bills are still
+in bucket `"2026-07"` under old cd=1). To fix this, the Settings save handler detects
+a change and prompts "Move existing bills to match?"; on confirm, `migrateCycleShift`
+walks every expense with a `dueDay`, computes its real calendar date under the OLD
+cycle, then re-buckets it under the NEW cycle — moving both paid and unpaid bills
+(the user's existing bills are treated as their standard recurring set, not
+month-specific extras). It also shifts each loan's `appliedMonths`/`skippedMonths`/
+`startMonth` using its `ddDay` so `processLoans` doesn't double-apply after the shift.
+Bills without a `dueDay` are left in place. Autosnapshot fires before the migration
+(via the normal `save()` path), so "Undo last change" in Settings reverses it.
+
 **Home tab** shows: month nav, the "Remaining this month" card, **Upcoming payments**
 (unpaid expenses for the month, 3 shown + "See all" toggle, tickable), and **Finance
 Notes** (add/edit/tick to-dos). The health score, Plan-vs-Actual and This-month tiles were
