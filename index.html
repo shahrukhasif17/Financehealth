@@ -2293,11 +2293,22 @@ window.openSettings = () => {
     save(); render();
   });
 };
-window.exportBackup = () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+window.exportBackup = async () => {
+  const json = JSON.stringify(state, null, 2);
+  const fname = `finance-health-backup-${today().toISOString().slice(0, 10)}.json`;
+  // On iPhone, the share sheet lets you "Save to Files → iCloud Drive" or email
+  // it to yourself — far more reliable than a download in a standalone PWA.
+  try {
+    const file = new File([json], fname, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Finance Health backup" });
+      return;
+    }
+  } catch (e) { if (e && e.name === "AbortError") return; /* fall through to download */ }
+  const blob = new Blob([json], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `finance-health-backup-${today().toISOString().slice(0, 10)}.json`;
+  a.download = fname;
   document.body.appendChild(a);
   a.click();
   a.remove();
