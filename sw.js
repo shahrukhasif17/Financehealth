@@ -1,7 +1,7 @@
 /* Finance Health — service worker.
    Network-first for the page itself (so updates show immediately when online),
    cache-first for other assets, with an offline fallback throughout. */
-const CACHE = "finance-health-v29";
+const CACHE = "finance-health-v30";
 const ASSETS = [
   "./",
   "./index.html",

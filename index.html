@@ -815,6 +815,10 @@ function migrate() {
   if (s.lastBackup === undefined) s.lastBackup = null;
   if (!(s.payCycleDay >= 1 && s.payCycleDay <= 28)) s.payCycleDay = 1;
   for (const t of state.recurring) { if (!t.method) t.method = "dd"; if (!t.category) t.category = "Regular"; }
+  // "Extra" one-offs must never have become recurring templates (a form-toggle
+  // bug allowed it) — drop such templates so month creation stops copying
+  // them. Existing copies stay: deleting one clears the rest forward.
+  state.recurring = state.recurring.filter(t => t.category !== "Extra");
   for (const l of state.loans) { if (!l.type) l.type = "loan"; if (l.apr == null) l.apr = 0; if (l.extraTotal == null) l.extraTotal = 0; }
   if (!Array.isArray(state.notes)) state.notes = [];
   for (const k in state.months) {
@@ -2176,10 +2180,13 @@ function saveExpenseForm(e) {
   if (!name) return invalid("fx-name", "Give the expense a name.");
   if (amount <= 0) return invalid("fx-amount", "Enter an amount greater than zero.");
   const dueDay = dayVal("fx-due");
-  const rec = checked("fx-rec");
   const method = $("#fx-method .active").dataset.v;
   let category = val("fx-cat-sel") === "__custom" ? val("fx-cat-custom") : val("fx-cat-sel");
   if (!category) category = "Regular";
+  // "Extra" means a one-off by definition — it must never replicate into
+  // future months, even if the Recurring toggle was left on (it remembers
+  // its last state from bulk entry, which caused Extra bills to recur).
+  const rec = checked("fx-rec") && category !== "Extra";
   const bank = val("fx-bank") || null;
   // Optional expiry for recurring payments (e.g. "only 3 payments left")
   const endVal = val("fx-end");
@@ -2282,6 +2289,10 @@ window.openExpenseSheet = (id, presetMethod) => {
   const catSel = $("#fx-cat-sel");
   catSel.addEventListener("change", () => {
     $("#fx-cat-custom-row").classList.toggle("hidden", catSel.value !== "__custom");
+    if (catSel.value === "Extra") { // one-offs can't recur
+      $("#fx-rec").checked = false;
+      $("#fx-end-row").classList.add("hidden");
+    }
   });
   $("#fx-rec").addEventListener("change", ev => {
     $("#fx-end-row").classList.toggle("hidden", !ev.target.checked);
